@@ -10,14 +10,16 @@ import AuthPage from "./pages/AuthPage";
 function App() {
   const { user, isLoading } = useUser();
 
-  if (isLoading) return null;
+  if (isLoading) return <div className="min-h-screen bg-blue-100" />;
 
   return (
-    <Switch>
-      <Route path="/" >
-        {user ? <ChatPage /> : <AuthPage />}
-      </Route>
-    </Switch>
+    <div className="min-h-screen">
+      <Switch>
+        <Route path="/">
+          {user ? <ChatPage /> : <AuthPage />}
+        </Route>
+      </Switch>
+    </div>
   );
 }
 
