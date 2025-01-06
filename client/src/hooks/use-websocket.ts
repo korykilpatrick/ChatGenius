@@ -170,6 +170,13 @@ export function useWebSocket() {
         console.error('Failed to parse message:', error);
       }
     };
+
+    wsRef.current.addEventListener('message', handleMessage);
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.removeEventListener('message', handleMessage);
+      }
+    };
   }, [toast]);
 
   return { isConnected, sendMessage, subscribe };

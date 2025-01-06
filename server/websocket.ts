@@ -21,6 +21,7 @@ export function setupWebSocket(server: Server) {
     noServer: true,
     perMessageDeflate: false,
     maxPayload: 64 * 1024,
+    clientTracking: true,
   });
 
   server.on('upgrade', (request, socket, head) => {
