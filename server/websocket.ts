@@ -35,9 +35,10 @@ export function setupWebSocket(server: Server) {
 
   // Track clients with their user IDs
   const clients = new Map<number, ExtendedWebSocket>();
-  const pendingClients = new Set<ExtendedWebSocket>();
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
+    const extWs = ws as ExtendedWebSocket;
+    extWs.isAlive = true;
     console.log('New WebSocket connection established');
     const extWs = ws as ExtendedWebSocket;
     let heartbeat: NodeJS.Timeout;
