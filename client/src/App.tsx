@@ -15,8 +15,11 @@ function App() {
   return (
     <div className="min-h-screen">
       <Switch>
+        <Route path="/login">
+          {user ? <Redirect to="/" /> : <AuthPage />}
+        </Route>
         <Route path="/">
-          {user ? <ChatPage /> : <AuthPage />}
+          {user ? <ChatPage /> : <Redirect to="/login" />}
         </Route>
       </Switch>
     </div>
