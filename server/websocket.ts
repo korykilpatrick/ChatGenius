@@ -22,8 +22,11 @@ export function setupWebSocket(server: Server) {
     path: '/ws',
     clientTracking: true,
     perMessageDeflate: false,
-    maxPayload: 64 * 1024, // 64kb
+    maxPayload: 64 * 1024,
     handleProtocols: () => 'chat',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    }
   });
 
   // Track clients with their user IDs
