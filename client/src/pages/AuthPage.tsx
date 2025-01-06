@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,13 +31,10 @@ export default function AuthPage() {
 
   const onSubmit = async (data: AuthFormData) => {
     try {
-      console.log('Submitting auth form:', isLogin ? 'login' : 'register');
       if (isLogin) {
-        const result = await login(data);
-        console.log('Login result:', result);
+        await login(data);
       } else {
-        const result = await register(data);
-        console.log('Register result:', result);
+        await register(data);
       }
     } catch (error) {
       console.error('Auth error:', error);
@@ -62,7 +60,6 @@ export default function AuthPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <Label>Username</Label>
                     <Label>Username</Label>
                     <FormControl>
                       <Input placeholder="Enter username" {...field} />
@@ -90,6 +87,12 @@ export default function AuthPage() {
                 {isLogin ? "Login" : "Register"}
               </Button>
 
+              {form.formState.errors.root && (
+                <p className="text-red-500 text-sm text-center mt-2">
+                  {form.formState.errors.root.message}
+                </p>
+              )}
+
               <p className="text-center text-sm text-muted-foreground">
                 {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
@@ -100,12 +103,6 @@ export default function AuthPage() {
                   {isLogin ? "Register" : "Login"}
                 </button>
               </p>
-
-              {form.formState.errors.root && (
-                <p className="text-red-500 text-sm text-center mt-2">
-                  {form.formState.errors.root.message}
-                </p>
-              )}
             </form>
           </Form>
         </CardContent>
