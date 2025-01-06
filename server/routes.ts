@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { channels, messages, channelMembers, users } from "@db/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, isNull } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -36,23 +36,64 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
 
-    // First, get all parent messages
+    // Get all parent messages (messages without a parentId)
     const channelMessages = await db
       .select({
         message: messages,
         user: {
           id: users.id,
-          username: users.username
+          username: users.username,
+          avatar: users.avatar,
         }
       })
       .from(messages)
-      .where(eq(messages.channelId, channelId))
+      .where(and(
+        eq(messages.channelId, channelId),
+        isNull(messages.parentId)
+      ))
       .innerJoin(users, eq(users.id, messages.userId))
       .orderBy(desc(messages.createdAt));
 
-    res.json(channelMessages.map(({ message, user }) => ({
+    // Get the reply count for each parent message
+    const messagesWithReplies = await Promise.all(
+      channelMessages.map(async ({ message, user }) => {
+        const replies = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.parentId, message.id));
+
+        return {
+          ...message,
+          user,
+          replies: replies || [],
+        };
+      })
+    );
+
+    res.json(messagesWithReplies);
+  });
+
+  // Thread replies
+  app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
+    const messageId = parseInt(req.params.messageId);
+
+    const replies = await db
+      .select({
+        message: messages,
+        user: {
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        }
+      })
+      .from(messages)
+      .where(eq(messages.parentId, messageId))
+      .innerJoin(users, eq(users.id, messages.userId))
+      .orderBy(asc(messages.createdAt));
+
+    res.json(replies.map(({ message, user }) => ({
       ...message,
-      user
+      user,
     })));
   });
 

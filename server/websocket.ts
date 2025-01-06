@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { db } from '@db';
 import { messages, users } from '@db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -42,7 +42,7 @@ export function setupWebSocket(server: Server) {
         console.log('Received message:', message);
 
         if (message.type === 'new_message') {
-          const { channelId, content, userId } = message.payload;
+          const { channelId, content, userId, parentId } = message.payload;
           if (!channelId || !content || !userId) return;
 
           try {
@@ -51,6 +51,7 @@ export function setupWebSocket(server: Server) {
                 channelId,
                 content,
                 userId,
+                parentId: parentId || null,
               })
               .returning();
 
@@ -61,6 +62,7 @@ export function setupWebSocket(server: Server) {
                   user: {
                     id: users.id,
                     username: users.username,
+                    avatar: users.avatar,
                   }
                 })
                 .from(messages)
@@ -111,10 +113,6 @@ export function setupWebSocket(server: Server) {
 
   wss.on('error', (error) => {
     console.error('WebSocket server error:', error);
-  });
-
-  wss.on('listening', () => {
-    console.log('WebSocket server is listening');
   });
 
   return wss;
