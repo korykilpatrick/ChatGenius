@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -7,7 +8,6 @@ import MessageInput from "@/components/chat/MessageInput";
 import { format } from "date-fns";
 import type { Message } from "@db/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { useEffect, useCallback } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type MessageListProps = {

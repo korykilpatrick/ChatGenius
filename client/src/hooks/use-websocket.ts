@@ -20,9 +20,15 @@ export function useWebSocket() {
       return;
     }
 
-    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket is already connecting');
-      return;
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.log('WebSocket is already connecting');
+        return;
+      }
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('WebSocket is already connected');
+        return;
+      }
     }
 
     // Close existing connection if any
