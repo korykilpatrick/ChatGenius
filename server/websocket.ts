@@ -21,6 +21,8 @@ export function setupWebSocket(server: Server) {
     server,
     path: '/ws',
     clientTracking: true,
+    perMessageDeflate: false,
+    maxPayload: 64 * 1024, // 64kb
   });
 
   // Track clients with their user IDs
