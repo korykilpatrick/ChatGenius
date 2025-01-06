@@ -30,13 +30,19 @@ export default function AuthPage() {
 
   const onSubmit = async (data: AuthFormData) => {
     try {
+      console.log('Submitting auth form:', isLogin ? 'login' : 'register');
       if (isLogin) {
-        await login(data);
+        const result = await login(data);
+        console.log('Login result:', result);
       } else {
-        await register(data);
+        const result = await register(data);
+        console.log('Register result:', result);
       }
     } catch (error) {
-      console.error(error);
+      console.error('Auth error:', error);
+      form.setError('root', { 
+        message: error instanceof Error ? error.message : 'Authentication failed'
+      });
     }
   };
 
@@ -100,3 +106,10 @@ export default function AuthPage() {
     </div>
   );
 }
+
+
+              {form.formState.errors.root && (
+                <p className="text-red-500 text-sm text-center mt-2">
+                  {form.formState.errors.root.message}
+                </p>
+              )}
