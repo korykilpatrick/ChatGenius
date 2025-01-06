@@ -14,9 +14,8 @@ function App() {
 
   return (
     <Switch>
-      <Route path="/login" component={AuthPage} />
-      <Route path="/">
-        {user ? <ChatPage /> : <Redirect to="/login" />}
+      <Route path="/" >
+        {user ? <ChatPage /> : <AuthPage />}
       </Route>
     </Switch>
   );

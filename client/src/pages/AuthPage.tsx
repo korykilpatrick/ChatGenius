@@ -45,8 +45,8 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Card className="w-full max-w-md mx-4">
+    <div className="min-h-screen flex items-center justify-center bg-blue-100">
+      <Card className="w-full max-w-md mx-4 bg-white">
         <CardHeader>
           <CardTitle className="text-2xl text-center">
             Welcome to ChatGenius
