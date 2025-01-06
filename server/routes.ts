@@ -13,103 +13,47 @@ export function registerRoutes(app: Express): Server {
   // Create HTTP server first
   const httpServer = createServer(app);
 
-  // Setup WebSocket server with explicit error handling
-  httpServer.on('error', (error) => {
-    console.error('HTTP Server error:', error);
-  });
-
   // Setup WebSocket after HTTP server
   setupWebSocket(httpServer);
 
   // Channels
-  app.get("/api/channels", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
-    const userChannels = await db
-      .select({
-        channel: channels,
-        member: channelMembers
-      })
-      .from(channelMembers)
-      .where(eq(channelMembers.userId, req.user.id))
-      .innerJoin(channels, eq(channels.id, channelMembers.channelId));
-
-    res.json(userChannels.map(uc => uc.channel));
+  app.get("/api/channels", async (_req, res) => {
+    const userChannels = await db.select().from(channels);
+    res.json(userChannels);
   });
 
   app.post("/api/channels", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
     const { name, description, isPrivate } = req.body;
 
     const [channel] = await db.insert(channels)
-      .values({ name, description, isPrivate })
+      .values({ name, description, isPrivate: isPrivate || false })
       .returning();
-
-    await db.insert(channelMembers)
-      .values({ channelId: channel.id, userId: req.user.id });
 
     res.json(channel);
   });
 
   // Messages
   app.get("/api/channels/:channelId/messages", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).send("Not authenticated");
-    }
-
     const channelId = parseInt(req.params.channelId);
 
+    // First, get all parent messages
     const channelMessages = await db
       .select({
         message: messages,
         user: {
           id: users.id,
-          username: users.username,
-          status: users.status,
-          avatar: users.avatar,
-          lastSeen: users.lastSeen
+          username: users.username
         }
       })
       .from(messages)
-      .where(and(
-        eq(messages.channelId, channelId),
-        eq(messages.parentId, null)
-      ))
+      .where(eq(messages.channelId, channelId))
       .innerJoin(users, eq(users.id, messages.userId))
       .orderBy(desc(messages.createdAt));
 
-    const messagesWithReplies = await Promise.all(
-      channelMessages.map(async ({ message, user }) => {
-        const replies = await db
-          .select({
-            message: messages,
-            user: {
-              id: users.id,
-              username: users.username,
-              status: users.status,
-              avatar: users.avatar,
-              lastSeen: users.lastSeen
-            }
-          })
-          .from(messages)
-          .where(eq(messages.parentId, message.id))
-          .innerJoin(users, eq(users.id, messages.userId))
-          .orderBy(asc(messages.createdAt));
-
-        return {
-          ...message,
-          user,
-          replies: replies.map(r => ({ ...r.message, user: r.user }))
-        };
-      })
-    );
-
-    res.json(messagesWithReplies);
+    res.json(channelMessages.map(({ message, user }) => ({
+      ...message,
+      user
+    })));
   });
 
   return httpServer;
