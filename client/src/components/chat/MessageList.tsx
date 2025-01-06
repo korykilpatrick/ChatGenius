@@ -32,8 +32,11 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
   }, [channelId, queryClient]);
 
   useEffect(() => {
-    subscribe(handleWebSocketMessage);
-  }, [subscribe, handleWebSocketMessage]);
+    const unsubscribe = subscribe(handleWebSocketMessage);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [channelId, subscribe, handleWebSocketMessage]);
 
   const handleReaction = (messageId: number, reaction: string) => {
     sendMessage('message_reaction', { messageId, reaction });
