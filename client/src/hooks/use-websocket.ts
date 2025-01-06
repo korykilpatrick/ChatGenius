@@ -33,7 +33,8 @@ export function useWebSocket() {
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}/ws`;
       console.log('Connecting to WebSocket:', wsUrl);
 
-      const ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, ['chat']);
+      ws.binaryType = 'blob';
 
       // Setup ping/pong for connection health check
       const pingInterval = setInterval(() => {

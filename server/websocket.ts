@@ -23,6 +23,7 @@ export function setupWebSocket(server: Server) {
     clientTracking: true,
     perMessageDeflate: false,
     maxPayload: 64 * 1024, // 64kb
+    handleProtocols: () => 'chat',
   });
 
   // Track clients with their user IDs
