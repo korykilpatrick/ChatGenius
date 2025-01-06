@@ -1,27 +1,65 @@
-import { useQuery } from '@tanstack/react-query';
+
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InsertUser } from "@db/schema";
 
-// Development user for prototyping
-const devUser = {
-  id: 1,
-  username: "dev_user"
-};
-
-// Simplified hook for development
 export function useUser() {
-  const { data: user } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data: user, isLoading, error } = useQuery({
     queryKey: ['user'],
-    queryFn: async () => devUser,
-    staleTime: Infinity,
+    queryFn: async () => {
+      const response = await fetch('/api/user');
+      if (!response.ok) {
+        throw new Error('Not authenticated');
+      }
+      return response.json();
+    },
+    retry: false
   });
 
-  return {
-    user,
-    isLoading: false,
-    error: null,
-    // No-op functions for development that accept arguments but don't use them
-    login: async (_data: InsertUser) => ({ ok: true }),
-    logout: async () => ({ ok: true }),
-    register: async (_data: InsertUser) => ({ ok: true })
+  const login = async (data: InsertUser) => {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
+    }
+    
+    const result = await response.json();
+    queryClient.setQueryData(['user'], result.user);
+    return result;
   };
+
+  const register = async (data: InsertUser) => {
+    const response = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
+    }
+    
+    const result = await response.json();
+    queryClient.setQueryData(['user'], result.user);
+    return result;
+  };
+
+  const logout = async () => {
+    const response = await fetch('/api/logout', {
+      method: 'POST',
+    });
+    if (response.ok) {
+      queryClient.setQueryData(['user'], null);
+    }
+    return response.ok;
+  };
+
+  return { user, isLoading, error, login, logout, register };
 }
