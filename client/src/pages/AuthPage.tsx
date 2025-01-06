@@ -63,6 +63,7 @@ export default function AuthPage() {
                 render={({ field }) => (
                   <FormItem>
                     <Label>Username</Label>
+                    <Label>Username</Label>
                     <FormControl>
                       <Input placeholder="Enter username" {...field} />
                     </FormControl>
