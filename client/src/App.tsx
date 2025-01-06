@@ -10,7 +10,7 @@ import AuthPage from "./pages/AuthPage";
 function App() {
   const { user, isLoading } = useUser();
 
-  if (isLoading) return <div className="min-h-screen bg-blue-100" />;
+  if (isLoading) return <div className="min-h-screen" />;
 
   return (
     <div className="min-h-screen">
