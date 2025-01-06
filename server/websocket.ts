@@ -40,7 +40,6 @@ export function setupWebSocket(server: Server) {
     const extWs = ws as ExtendedWebSocket;
     extWs.isAlive = true;
     console.log('New WebSocket connection established');
-    const extWs = ws as ExtendedWebSocket;
     let heartbeat: NodeJS.Timeout;
 
     // Setup ping/pong for connection health check
