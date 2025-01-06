@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,13 @@ import { useUser } from "@/hooks/use-user";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+} from "@/components/ui/form";
 
 const authSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -20,7 +25,7 @@ type AuthFormData = z.infer<typeof authSchema>;
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const { login, register } = useUser();
-  
+
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
     defaultValues: {
@@ -37,15 +42,16 @@ export default function AuthPage() {
         await register(data);
       }
     } catch (error) {
-      console.error('Auth error:', error);
-      form.setError('root', { 
-        message: error instanceof Error ? error.message : 'Authentication failed'
+      console.error("Auth error:", error);
+      form.setError("root", {
+        message:
+          error instanceof Error ? error.message : "Authentication failed",
       });
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-blue-100">
+    <div className="min-h-screen flex items-center justify-center">
       <Card className="w-full max-w-md mx-4 bg-white">
         <CardHeader>
           <CardTitle className="text-2xl text-center">
@@ -76,7 +82,11 @@ export default function AuthPage() {
                   <FormItem>
                     <Label>Password</Label>
                     <FormControl>
-                      <Input type="password" placeholder="Enter password" {...field} />
+                      <Input
+                        type="password"
+                        placeholder="Enter password"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -94,7 +104,9 @@ export default function AuthPage() {
               )}
 
               <p className="text-center text-sm text-muted-foreground">
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
+                {isLogin
+                  ? "Don't have an account? "
+                  : "Already have an account? "}
                 <button
                   type="button"
                   onClick={() => setIsLogin(!isLogin)}
