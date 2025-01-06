@@ -30,12 +30,11 @@ export function useWebSocket() {
     try {
       // Create WebSocket URL using the current window location
       // For Replit, always use wss and the full hostname
-      const wsUrl = new URL('/ws', window.location.href);
-      wsUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      console.log('Connecting to WebSocket:', wsUrl.toString());
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      console.log('Connecting to WebSocket:', wsUrl);
 
-      const ws = new WebSocket(wsUrl.toString(), ['chat']);
-      ws.binaryType = 'blob';
+      const ws = new WebSocket(wsUrl);
 
       // Setup ping/pong for connection health check
       const pingInterval = setInterval(() => {

@@ -18,14 +18,16 @@ interface WebSocketMessage {
 export function setupWebSocket(server: Server) {
   // Create WebSocket server with explicit configuration
   const wss = new WebSocketServer({
-    server,
-    path: '/ws',
-    clientTracking: true,
+    noServer: true,
     perMessageDeflate: false,
     maxPayload: 64 * 1024,
-    handleProtocols: () => 'chat',
-    headers: {
-      'Access-Control-Allow-Origin': '*',
+  });
+
+  server.on('upgrade', (request, socket, head) => {
+    if (request.url === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
     }
   });
 
