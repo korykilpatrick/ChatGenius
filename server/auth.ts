@@ -5,7 +5,7 @@ import session from "express-session";
 import createMemoryStore from "memorystore";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
-import { users, type User, insertUserSchema } from "@db/schema";
+import { users, insertUserSchema, type User } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 
@@ -37,10 +37,19 @@ declare module "express-session" {
   }
 }
 
+// Define the User type explicitly to avoid circular references
+interface AuthUser {
+  id: number;
+  username: string;
+  status: string;
+  avatar: string | null;
+  lastSeen: Date | null;
+}
+
+// Define the Express User interface
 declare global {
   namespace Express {
-    // Use the User type from our schema
-    interface User extends Omit<User, 'password'> {}
+    interface User extends AuthUser {}
   }
 }
 
@@ -87,14 +96,21 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Incorrect password." });
         }
 
-        return done(null, user);
+        const authUser: AuthUser = {
+          id: user.id,
+          username: user.username,
+          status: user.status,
+          avatar: user.avatar,
+          lastSeen: user.lastSeen,
+        };
+
+        return done(null, authUser);
       } catch (err) {
         return done(err);
       }
     })
   );
 
-  // Passport.js serialization
   passport.serializeUser((user: Express.User, done) => {
     done(null, user.id);
   });
@@ -102,11 +118,30 @@ export function setupAuth(app: Express) {
   passport.deserializeUser(async (id: number, done) => {
     try {
       const [user] = await db
-        .select()
+        .select({
+          id: users.id,
+          username: users.username,
+          status: users.status,
+          avatar: users.avatar,
+          lastSeen: users.lastSeen,
+        })
         .from(users)
         .where(eq(users.id, id))
         .limit(1);
-      done(null, user);
+
+      if (!user) {
+        return done(new Error('User not found'));
+      }
+
+      const authUser: AuthUser = {
+        id: user.id,
+        username: user.username,
+        status: user.status,
+        avatar: user.avatar,
+        lastSeen: user.lastSeen,
+      };
+
+      done(null, authUser);
     } catch (err) {
       done(err);
     }
@@ -119,7 +154,7 @@ export function setupAuth(app: Express) {
       if (!result.success) {
         return res
           .status(400)
-          .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+          .send("Invalid input: " + result.error.issues.map((i: any) => i.message).join(", "));
       }
 
       const { username, password } = result.data;
@@ -146,16 +181,30 @@ export function setupAuth(app: Express) {
           password: hashedPassword,
           status: "online",
         })
-        .returning();
+        .returning({
+          id: users.id,
+          username: users.username,
+          status: users.status,
+          avatar: users.avatar,
+          lastSeen: users.lastSeen,
+        });
+
+      const authUser: AuthUser = {
+        id: newUser.id,
+        username: newUser.username,
+        status: newUser.status,
+        avatar: newUser.avatar,
+        lastSeen: newUser.lastSeen,
+      };
 
       // Log the user in after registration
-      req.login(newUser, (err) => {
+      req.login(authUser, (err) => {
         if (err) {
           return next(err);
         }
         return res.json({
           message: "Registration successful",
-          user: { id: newUser.id, username: newUser.username },
+          user: authUser,
         });
       });
     } catch (error) {
@@ -168,7 +217,7 @@ export function setupAuth(app: Express) {
     if (!result.success) {
       return res
         .status(400)
-        .send("Invalid input: " + result.error.issues.map(i => i.message).join(", "));
+        .send("Invalid input: " + result.error.issues.map((i: any) => i.message).join(", "));
     }
 
     passport.authenticate("local", async (err: any, user: Express.User | false, info: IVerifyOptions) => {
@@ -193,7 +242,7 @@ export function setupAuth(app: Express) {
 
         return res.json({
           message: "Login successful",
-          user: { id: user.id, username: user.username },
+          user,
         });
       });
     })(req, res, next);
