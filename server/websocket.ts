@@ -12,25 +12,10 @@ type WebSocketMessage = {
 
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
-    noServer: true,
-    clientTracking: true,
-  });
-
-  server.on('upgrade', (request: IncomingMessage, socket, head) => {
-    const pathname = request.url;
-
-    if (pathname === '/api/ws') {
-      const protocol = request.headers['sec-websocket-protocol'];
-      if (protocol === 'vite-hmr') {
-        socket.destroy();
-        return;
-      }
-
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    } else {
-      return;
+    server,
+    path: '/api/ws',
+    verifyClient: (info) => {
+      return info.req.headers['sec-websocket-protocol'] !== 'vite-hmr';
     }
   });
 
@@ -41,16 +26,18 @@ export function setupWebSocket(server: Server) {
 
     ws.on('message', async (data: string) => {
       try {
-        const message: WebSocketMessage = JSON.parse(data);
+        const message: WebSocketMessage = JSON.parse(data.toString());
 
         switch (message.type) {
           case 'user_connected':
             const userId = message.payload.userId;
-            clients.set(userId, ws);
-            await db.update(users)
-              .set({ status: 'online', lastSeen: new Date() })
-              .where(eq(users.id, userId));
-            broadcastUserStatus(userId, 'online');
+            if (userId) {
+              clients.set(userId, ws);
+              await db.update(users)
+                .set({ status: 'online', lastSeen: new Date() })
+                .where(eq(users.id, userId));
+              broadcastUserStatus(userId, 'online');
+            }
             break;
 
           case 'new_message':
@@ -129,8 +116,8 @@ export function setupWebSocket(server: Server) {
       }
     });
 
-    ws.on('ping', () => {
-      ws.pong();
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
     });
   });
 
@@ -143,11 +130,11 @@ export function setupWebSocket(server: Server) {
 
   function broadcastToChannel(channelId: number, message: WebSocketMessage) {
     const messageStr = JSON.stringify(message);
-    clients.forEach((ws) => {
+    for (const ws of clients.values()) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(messageStr);
       }
-    });
+    }
   }
 
   function broadcastUserStatus(userId: number, status: 'online' | 'offline') {
@@ -155,10 +142,12 @@ export function setupWebSocket(server: Server) {
       type: 'user_status',
       payload: { userId, status }
     });
-    clients.forEach((ws) => {
+    for (const ws of clients.values()) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(message);
       }
-    });
+    }
   }
+
+  return wss;
 }
