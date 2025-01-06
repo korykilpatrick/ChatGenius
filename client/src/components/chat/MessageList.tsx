@@ -23,7 +23,7 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
     queryKey: [`/api/channels/${channelId}/messages`],
   });
 
-  const { subscribe, sendMessage } = useWebSocket();
+  const { subscribe, sendMessage, isConnected } = useWebSocket();
 
   const handleWebSocketMessage = useCallback((message: any) => {
     if (message.type === 'message_created' && message.payload.channelId === channelId) {
