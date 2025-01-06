@@ -24,8 +24,8 @@ export const channels = pgTable("channels", {
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   content: text("content").notNull(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  channelId: integer("channel_id").references(() => channels.id).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  channelId: integer("channel_id").references(() => channels.id, { onDelete: 'cascade' }).notNull(),
   parentId: integer("parent_id").references(() => messages.id),
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
@@ -34,8 +34,8 @@ export const messages = pgTable("messages", {
 
 export const channelMembers = pgTable("channel_members", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  channelId: integer("channel_id").references(() => channels.id).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  channelId: integer("channel_id").references(() => channels.id, { onDelete: 'cascade' }).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
 
@@ -50,7 +50,7 @@ export const channelsRelations = relations(channels, ({ many }) => ({
   members: many(channelMembers),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   channel: one(channels, {
     fields: [messages.channelId],
     references: [channels.id],
@@ -58,6 +58,11 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   user: one(users, {
     fields: [messages.userId],
     references: [users.id],
+  }),
+  replies: many(messages, { relationName: "replies" }),
+  parent: one(messages, {
+    fields: [messages.parentId],
+    references: [messages.id],
   }),
 }));
 
