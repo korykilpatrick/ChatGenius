@@ -70,14 +70,9 @@ export function useWebSocket() {
         wsRef.current = null;
         clearInterval(pingInterval);
 
-        // Attempt to reconnect unless it was a clean close or component unmounted
-        if (event.code !== 1000) {
-          toast({
-            title: 'Connection lost',
-            description: 'Attempting to reconnect...',
-            variant: 'destructive',
-          });
-
+        // Only reconnect on unexpected closures (not clean closes or server-initiated)
+        if (event.code !== 1000 && event.code !== 1005) {
+          console.log('Unexpected disconnect, attempting reconnect...');
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
           }
