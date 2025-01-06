@@ -8,13 +8,18 @@ export function useUser() {
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user'],
     queryFn: async () => {
-      const response = await fetch('/api/user');
-      if (!response.ok) {
-        throw new Error('Not authenticated');
+      try {
+        const response = await fetch('/api/user');
+        if (!response.ok) {
+          return null;
+        }
+        return response.json();
+      } catch (err) {
+        return null;
       }
-      return response.json();
     },
-    retry: false
+    retry: false,
+    staleTime: 5000
   });
 
   const login = async (data: InsertUser) => {
