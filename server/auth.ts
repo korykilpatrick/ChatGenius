@@ -1,7 +1,20 @@
-import { type Express } from "express";
+import { type Express, type Request } from "express";
 import { users } from "@db/schema";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
+
+// Extend Express Request type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number;
+        username: string;
+      };
+      isAuthenticated(): boolean;
+    }
+  }
+}
 
 // For development, we'll use a simplified auth system
 export async function setupAuth(app: Express) {
