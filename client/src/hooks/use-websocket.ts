@@ -12,35 +12,42 @@ export function useWebSocket() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
+    const connectWebSocket = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
+      wsRef.current = ws;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      toast({
-        title: "Connected",
-        description: "Real-time messaging enabled",
-      });
+      ws.onopen = () => {
+        setIsConnected(true);
+        toast({
+          title: "Connected",
+          description: "Real-time messaging enabled",
+        });
+      };
+
+      ws.onclose = () => {
+        setIsConnected(false);
+        toast({
+          title: "Disconnected",
+          description: "Connection lost. Trying to reconnect...",
+          variant: "destructive",
+        });
+        // Attempt to reconnect after 5 seconds
+        setTimeout(connectWebSocket, 5000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        ws.close();
+      };
     };
 
-    ws.onclose = () => {
-      setIsConnected(false);
-      toast({
-        title: "Disconnected",
-        description: "Connection lost. Trying to reconnect...",
-        variant: "destructive",
-      });
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => {
-        if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
-          window.location.reload();
-        }
-      }, 5000);
-    };
+    connectWebSocket();
 
     return () => {
-      ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
@@ -54,8 +61,12 @@ export function useWebSocket() {
   const subscribe = (callback: (message: WebSocketMessage) => void) => {
     if (wsRef.current) {
       wsRef.current.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        callback(message);
+        try {
+          const message = JSON.parse(event.data);
+          callback(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
       };
     }
   };
