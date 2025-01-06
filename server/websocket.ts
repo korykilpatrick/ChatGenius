@@ -19,9 +19,10 @@ export function setupWebSocket(server: Server) {
   // Create WebSocket server with explicit configuration
   const wss = new WebSocketServer({
     noServer: true,
-    perMessageDeflate: false,
+    perMessageDeflate: true,
     maxPayload: 64 * 1024,
     clientTracking: true,
+    handleProtocols: () => 'chat',
   });
 
   server.on('upgrade', (request, socket, head) => {

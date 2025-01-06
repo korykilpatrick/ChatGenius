@@ -33,11 +33,16 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
 
   useEffect(() => {
     if (!channelId) return;
-    const unsubscribe = subscribe(handleWebSocketMessage);
+
+    const unsub = subscribe(handleWebSocketMessage);
+    const cleanup = () => {
+      if (typeof unsub === 'function') unsub();
+    };
+
+    window.addEventListener('beforeunload', cleanup);
     return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
+      cleanup();
+      window.removeEventListener('beforeunload', cleanup);
     };
   }, [channelId, subscribe, handleWebSocketMessage]);
 

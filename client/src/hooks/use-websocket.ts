@@ -147,7 +147,8 @@ export function useWebSocket() {
   const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
     if (!wsRef.current) {
       console.log('No WebSocket connection available for subscription');
-      return;
+      connect();
+      return () => {};
     }
 
     const handleMessage = (event: MessageEvent) => {
