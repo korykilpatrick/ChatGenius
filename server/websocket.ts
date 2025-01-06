@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { db } from '@db';
 import { messages, users, type Message } from '@db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 type WebSocketMessage = {
   type: string;
@@ -13,7 +13,7 @@ export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
     // Ignore vite HMR websocket connections
-    verifyClient: (info) => {
+    verifyClient: (info: { req: { headers: { [key: string]: string } } }) => {
       return info.req.headers['sec-websocket-protocol'] !== 'vite-hmr';
     }
   });
@@ -36,18 +36,42 @@ export function setupWebSocket(server: Server) {
             break;
 
           case 'new_message':
-            const newMessage = await db.insert(messages)
+            const [newMessage] = await db.insert(messages)
               .values(message.payload)
               .returning();
-            broadcastToChannel(message.payload.channelId, {
-              type: 'message_created',
-              payload: newMessage[0]
-            });
+
+            if (newMessage) {
+              const [messageWithUser] = await db
+                .select({
+                  message: messages,
+                  user: {
+                    id: users.id,
+                    username: users.username,
+                    status: users.status,
+                    avatar: users.avatar,
+                    lastSeen: users.lastSeen
+                  }
+                })
+                .from(messages)
+                .where(eq(messages.id, newMessage.id))
+                .innerJoin(users, eq(users.id, messages.userId));
+
+              if (messageWithUser) {
+                broadcastToChannel(newMessage.channelId, {
+                  type: 'message_created',
+                  payload: {
+                    ...messageWithUser.message,
+                    user: messageWithUser.user
+                  }
+                });
+              }
+            }
             break;
 
           case 'message_reaction':
             const { messageId, reaction, userId: reactingUserId } = message.payload;
-            const [targetMessage] = await db.select()
+            const [targetMessage] = await db
+              .select()
               .from(messages)
               .where(eq(messages.id, messageId))
               .limit(1);
@@ -94,7 +118,7 @@ export function setupWebSocket(server: Server) {
   });
 
   function getUserIdBySocket(ws: WebSocket): number | undefined {
-    for (const [userId, socket] of clients.entries()) {
+    for (const [userId, socket] of clients) {
       if (socket === ws) return userId;
     }
     return undefined;
