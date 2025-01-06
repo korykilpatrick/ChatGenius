@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useUser } from '@/hooks/use-user';
 import { useToast } from '@/hooks/use-toast';
@@ -7,72 +8,47 @@ interface WebSocketMessage {
   payload: Record<string, any>;
 }
 
+// Global singleton instance
+let globalWs: WebSocket | null = null;
+let globalConnecting = false;
+let connectedCallbacks: Set<() => void> = new Set();
+let messageCallbacks: Set<(message: WebSocketMessage) => void> = new Set();
+
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const { user } = useUser();
   const { toast } = useToast();
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   const connect = useCallback(() => {
-    if (!user) {
-      console.log('No user, skipping WebSocket connection');
+    if (!user || globalWs?.readyState === WebSocket.OPEN || globalConnecting) {
       return;
     }
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket is already connected');
-      return;
-    }
-
-    if (wsRef.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket is already connecting');
-      return;
-    }
-
-    if (wsRef.current) {
-      console.log('Cleaning up existing connection');
-      wsRef.current.close(1000, 'New connection requested');
-      wsRef.current = null;
-    }
+    globalConnecting = true;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     try {
-      // Create WebSocket URL using the current window location
-      // For Replit, always use wss and the full hostname
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      console.log('Connecting to WebSocket:', wsUrl);
+      globalWs = new WebSocket(wsUrl);
 
-      const ws = new WebSocket(wsUrl);
-
-      // Setup ping/pong for connection health check
-      const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 30000);
-
-      // Connection opened
-      ws.onopen = () => {
+      globalWs.onopen = () => {
         console.log('WebSocket connected successfully');
-        setIsConnected(true);
-        // Send user connected message
-        ws.send(JSON.stringify({
+        globalConnecting = false;
+        connectedCallbacks.forEach(cb => cb());
+        globalWs?.send(JSON.stringify({
           type: 'user_connected',
           payload: { userId: user.id }
         }));
       };
 
-      // Connection closed
-      ws.onclose = (event) => {
+      globalWs.onclose = (event) => {
         console.log('WebSocket disconnected:', event.code, event.reason);
-        setIsConnected(false);
-        wsRef.current = null;
-        clearInterval(pingInterval);
+        globalWs = null;
+        globalConnecting = false;
+        connectedCallbacks.forEach(cb => cb());
 
-        // Only reconnect on unexpected closures (not clean closes or server-initiated)
-        if (event.code !== 1000 && event.code !== 1005) {
-          console.log('Unexpected disconnect, attempting reconnect...');
+        if (event.code !== 1000) {
           if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
           }
@@ -80,63 +56,53 @@ export function useWebSocket() {
         }
       };
 
-      // Connection error
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        toast({
-          title: 'Connection error',
-          description: 'Failed to connect to chat server',
-          variant: 'destructive',
-        });
+      globalWs.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage;
+          messageCallbacks.forEach(cb => cb(message));
+        } catch (error) {
+          console.error('Failed to parse message:', error);
+        }
       };
 
-      wsRef.current = ws;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
-      toast({
-        title: 'Connection error',
-        description: 'Failed to establish WebSocket connection',
-        variant: 'destructive',
-      });
-
-      // Attempt to reconnect after error
+      globalConnecting = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
       reconnectTimeoutRef.current = setTimeout(connect, 5000);
     }
-  }, [user, toast]);
+  }, [user]);
 
-  // Connect when component mounts or user changes
   useEffect(() => {
-    if (user) {
-      connect();
-    }
-
+    const updateConnected = () => {
+      setIsConnected(globalWs?.readyState === WebSocket.OPEN);
+    };
+    
+    connectedCallbacks.add(updateConnected);
+    if (user) connect();
+    
     return () => {
-      // Cleanup on unmount
+      connectedCallbacks.delete(updateConnected);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close(1000, 'Component unmounted');
-        wsRef.current = null;
       }
     };
   }, [connect, user]);
 
-  // Send message helper
   const sendMessage = useCallback((type: string, payload: Record<string, any>) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.log('WebSocket not connected, attempting to reconnect...');
-      connect();
+    if (!globalWs || globalWs.readyState !== WebSocket.OPEN) {
+      toast({
+        title: 'Connection error',
+        description: 'Not connected to chat server',
+        variant: 'destructive',
+      });
       return;
     }
 
     try {
-      const message: WebSocketMessage = { type, payload };
-      console.log('Sending message:', message);
-      wsRef.current.send(JSON.stringify(message));
+      globalWs.send(JSON.stringify({ type, payload }));
     } catch (error) {
       console.error('Failed to send message:', error);
       toast({
@@ -145,43 +111,14 @@ export function useWebSocket() {
         variant: 'destructive',
       });
     }
-  }, [connect, toast]);
-
-  // Subscribe to messages
-  const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.log('WebSocket not connected, waiting for connection...');
-      return () => {};
-    }
-
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const message = JSON.parse(event.data) as WebSocketMessage;
-        console.log('Received message:', message);
-
-        // Handle error messages
-        if (message.type === 'error') {
-          toast({
-            title: 'Error',
-            description: message.payload.message,
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        callback(message);
-      } catch (error) {
-        console.error('Failed to parse message:', error);
-      }
-    };
-
-    wsRef.current.addEventListener('message', handleMessage);
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.removeEventListener('message', handleMessage);
-      }
-    };
   }, [toast]);
+
+  const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
+    messageCallbacks.add(callback);
+    return () => {
+      messageCallbacks.delete(callback);
+    };
+  }, []);
 
   return { isConnected, sendMessage, subscribe };
 }
