@@ -20,21 +20,19 @@ export function useWebSocket() {
       return;
     }
 
-    if (wsRef.current) {
-      if (wsRef.current.readyState === WebSocket.CONNECTING) {
-        console.log('WebSocket is already connecting');
-        return;
-      }
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-        console.log('WebSocket is already connected');
-        return;
-      }
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket is already connected');
+      return;
     }
 
-    // Close existing connection if any
+    if (wsRef.current?.readyState === WebSocket.CONNECTING) {
+      console.log('WebSocket is already connecting');
+      return;
+    }
+
     if (wsRef.current) {
-      console.log('Closing existing WebSocket connection');
-      wsRef.current.close();
+      console.log('Cleaning up existing connection');
+      wsRef.current.close(1000, 'New connection requested');
       wsRef.current = null;
     }
 

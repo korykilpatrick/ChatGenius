@@ -40,7 +40,7 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
         unsub();
       }
     };
-  }, [channelId, isConnected]);
+  }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
 
   const handleReaction = (messageId: number, reaction: string) => {
     sendMessage('message_reaction', { messageId, reaction });
