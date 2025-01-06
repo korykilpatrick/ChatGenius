@@ -99,6 +99,12 @@ export default function AuthPage() {
                   {isLogin ? "Register" : "Login"}
                 </button>
               </p>
+
+              {form.formState.errors.root && (
+                <p className="text-red-500 text-sm text-center mt-2">
+                  {form.formState.errors.root.message}
+                </p>
+              )}
             </form>
           </Form>
         </CardContent>
@@ -106,10 +112,3 @@ export default function AuthPage() {
     </div>
   );
 }
-
-
-              {form.formState.errors.root && (
-                <p className="text-red-500 text-sm text-center mt-2">
-                  {form.formState.errors.root.message}
-                </p>
-              )}
