@@ -10,6 +10,17 @@ export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
 
+  // Create HTTP server first
+  const httpServer = createServer(app);
+
+  // Setup WebSocket server with explicit error handling
+  httpServer.on('error', (error) => {
+    console.error('HTTP Server error:', error);
+  });
+
+  // Setup WebSocket after HTTP server
+  setupWebSocket(httpServer);
+
   // Channels
   app.get("/api/channels", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -100,12 +111,6 @@ export function registerRoutes(app: Express): Server {
 
     res.json(messagesWithReplies);
   });
-
-  // Create HTTP server
-  const httpServer = createServer(app);
-
-  // Setup WebSocket server
-  setupWebSocket(httpServer);
 
   return httpServer;
 }
