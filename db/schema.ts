@@ -28,10 +28,12 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   channelId: integer("channel_id").references(() => channels.id, { onDelete: 'cascade' }).notNull(),
-  parentId: integer("parent_id").references(() => messages.id),
+  parentId: integer("parent_id").references(() => messages.id, { onDelete: 'cascade' }),
+  replyCount: integer("reply_count").default(0).notNull(),
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const channelMembers = pgTable("channel_members", {
@@ -61,10 +63,16 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     fields: [messages.userId],
     references: [users.id],
   }),
-  replies: many(messages, { relationName: "replies" }),
+  // Define thread relationships
   parent: one(messages, {
     fields: [messages.parentId],
     references: [messages.id],
+    relationName: "thread",
+  }),
+  replies: many(messages, {
+    fields: [messages.id],
+    references: [messages.parentId],
+    relationName: "thread",
   }),
 }));
 
@@ -83,7 +91,7 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 
-// Base types
+// Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Channel = typeof channels.$inferSelect;

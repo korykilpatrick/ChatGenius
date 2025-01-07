@@ -46,69 +46,138 @@ export function registerRoutes(app: Express): Server {
     res.json(channel);
   });
 
-  // Messages
+  // Messages with enhanced thread support
   app.get("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
 
     // Get all parent messages (messages without a parentId)
-    const channelMessages = await db
-      .select({
-        message: messages,
-        user: {
-          id: users.id,
-          username: users.username,
-          avatar: users.avatar,
-        }
-      })
-      .from(messages)
-      .where(and(
+    const channelMessages = await db.query.messages.findMany({
+      where: and(
         eq(messages.channelId, channelId),
         isNull(messages.parentId)
-      ))
-      .innerJoin(users, eq(users.id, messages.userId))
-      .orderBy(desc(messages.createdAt));
+      ),
+      orderBy: desc(messages.createdAt),
+      with: {
+        user: {
+          columns: {
+            id: true,
+            username: true,
+            avatar: true
+          }
+        },
+        replies: {
+          limit: 3,
+          orderBy: desc(messages.createdAt),
+          with: {
+            user: {
+              columns: {
+                id: true,
+                username: true,
+                avatar: true
+              }
+            }
+          }
+        }
+      }
+    });
 
-    // Get the reply count for each parent message
-    const messagesWithReplies = await Promise.all(
-      channelMessages.map(async ({ message, user }) => {
-        const replies = await db
-          .select()
-          .from(messages)
-          .where(eq(messages.parentId, message.id));
-
-        return {
-          ...message,
-          user,
-          replies: replies || [],
-        };
-      })
-    );
-
-    res.json(messagesWithReplies);
+    res.json(channelMessages);
   });
 
-  // Thread replies
+  // Get thread replies with pagination
   app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
     const messageId = parseInt(req.params.messageId);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
 
-    const replies = await db
-      .select({
-        message: messages,
+    const replies = await db.query.messages.findMany({
+      where: eq(messages.parentId, messageId),
+      orderBy: asc(messages.createdAt),
+      limit,
+      offset,
+      with: {
         user: {
-          id: users.id,
-          username: users.username,
-          avatar: users.avatar,
+          columns: {
+            id: true,
+            username: true,
+            avatar: true
+          }
         }
-      })
-      .from(messages)
-      .where(eq(messages.parentId, messageId))
-      .innerJoin(users, eq(users.id, messages.userId))
-      .orderBy(asc(messages.createdAt));
+      }
+    });
 
-    res.json(replies.map(({ message, user }) => ({
-      ...message,
-      user,
-    })));
+    // Get total count for pagination
+    const [{ count }] = await db
+      .select({ count: db.fn.count() })
+      .from(messages)
+      .where(eq(messages.parentId, messageId));
+
+    res.json({
+      replies,
+      pagination: {
+        total: Number(count),
+        page,
+        pageSize: limit,
+        hasMore: Number(count) > page * limit
+      }
+    });
+  });
+
+  // Create a new message or thread reply
+  app.post("/api/channels/:channelId/messages", async (req, res) => {
+    const channelId = parseInt(req.params.channelId);
+    const { content, parentId } = req.body;
+    const userId = req.user?.id;
+
+    try {
+      // Start a transaction
+      const result = await db.transaction(async (tx) => {
+        // Create the message
+        const [newMessage] = await tx
+          .insert(messages)
+          .values({
+            channelId,
+            content,
+            userId,
+            parentId: parentId || null,
+          })
+          .returning();
+
+        // If this is a reply, increment the parent message's reply count
+        if (parentId) {
+          await tx
+            .update(messages)
+            .set({ 
+              replyCount: db.raw('reply_count + 1'),
+              updatedAt: new Date()
+            })
+            .where(eq(messages.id, parentId));
+        }
+
+        // Fetch the complete message with user data
+        const [messageWithUser] = await tx.query.messages.findMany({
+          where: eq(messages.id, newMessage.id),
+          with: {
+            user: {
+              columns: {
+                id: true,
+                username: true,
+                avatar: true
+              }
+            }
+          },
+          limit: 1
+        });
+
+        return messageWithUser;
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('Failed to create message:', error);
+      res.status(500).json({ message: 'Failed to create message' });
+    }
   });
 
   return httpServer;
