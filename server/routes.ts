@@ -46,82 +46,72 @@ export function registerRoutes(app: Express): Server {
     res.json(channel);
   });
 
-  // Messages with enhanced thread support
+  // Get channel messages (only parent messages)
   app.get("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
 
-    // Get all parent messages (messages without a parentId)
-    const channelMessages = await db.query.messages.findMany({
-      where: and(
-        eq(messages.channelId, channelId),
-        isNull(messages.parentId)
-      ),
-      orderBy: desc(messages.createdAt),
-      with: {
-        user: {
-          columns: {
-            id: true,
-            username: true,
-            avatar: true
-          }
-        },
-        replies: {
-          limit: 3,
-          orderBy: desc(messages.createdAt),
-          with: {
-            user: {
-              columns: {
-                id: true,
-                username: true,
-                avatar: true
+    try {
+      const result = await db.query.messages.findMany({
+        where: and(
+          eq(messages.channelId, channelId),
+          isNull(messages.parentId)
+        ),
+        orderBy: desc(messages.createdAt),
+        with: {
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              avatar: true
+            }
+          },
+          replies: {
+            limit: 3,
+            orderBy: desc(messages.createdAt),
+            with: {
+              user: {
+                columns: {
+                  id: true,
+                  username: true,
+                  avatar: true
+                }
               }
             }
           }
         }
-      }
-    });
+      });
 
-    res.json(channelMessages);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
   });
 
-  // Get thread replies with pagination
+  // Get replies for a specific message
   app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
     const messageId = parseInt(req.params.messageId);
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = (page - 1) * limit;
 
-    const replies = await db.query.messages.findMany({
-      where: eq(messages.parentId, messageId),
-      orderBy: asc(messages.createdAt),
-      limit,
-      offset,
-      with: {
-        user: {
-          columns: {
-            id: true,
-            username: true,
-            avatar: true
+    try {
+      const replies = await db.query.messages.findMany({
+        where: eq(messages.parentId, messageId),
+        orderBy: asc(messages.createdAt),
+        with: {
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              avatar: true
+            }
           }
         }
-      }
-    });
+      });
 
-    // Get total count for pagination
-    const [{ count }] = await db
-      .select({ count: db.fn.count() })
-      .from(messages)
-      .where(eq(messages.parentId, messageId));
-
-    res.json({
-      replies,
-      pagination: {
-        total: Number(count),
-        page,
-        pageSize: limit,
-        hasMore: Number(count) > page * limit
-      }
-    });
+      res.json(replies);
+    } catch (error) {
+      console.error("Error fetching replies:", error);
+      res.status(500).json({ message: "Failed to fetch replies" });
+    }
   });
 
   // Create a new message or thread reply
@@ -130,53 +120,40 @@ export function registerRoutes(app: Express): Server {
     const { content, parentId } = req.body;
     const userId = req.user?.id;
 
+    if (!userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
     try {
-      // Start a transaction
-      const result = await db.transaction(async (tx) => {
-        // Create the message
-        const [newMessage] = await tx
-          .insert(messages)
-          .values({
-            channelId,
-            content,
-            userId,
-            parentId: parentId || null,
-          })
-          .returning();
+      // Create the message
+      const [newMessage] = await db
+        .insert(messages)
+        .values({
+          channelId,
+          content,
+          userId,
+          parentId: parentId || null,
+        })
+        .returning();
 
-        // If this is a reply, increment the parent message's reply count
-        if (parentId) {
-          await tx
-            .update(messages)
-            .set({ 
-              replyCount: db.raw('reply_count + 1'),
-              updatedAt: new Date()
-            })
-            .where(eq(messages.id, parentId));
-        }
-
-        // Fetch the complete message with user data
-        const [messageWithUser] = await tx.query.messages.findMany({
-          where: eq(messages.id, newMessage.id),
-          with: {
-            user: {
-              columns: {
-                id: true,
-                username: true,
-                avatar: true
-              }
+      // Fetch the complete message with user data
+      const [messageWithUser] = await db.query.messages.findMany({
+        where: eq(messages.id, newMessage.id),
+        with: {
+          user: {
+            columns: {
+              id: true,
+              username: true,
+              avatar: true
             }
-          },
-          limit: 1
-        });
-
-        return messageWithUser;
+          }
+        }
       });
 
-      res.json(result);
+      res.json(messageWithUser);
     } catch (error) {
-      console.error('Failed to create message:', error);
-      res.status(500).json({ message: 'Failed to create message' });
+      console.error("Error creating message:", error);
+      res.status(500).json({ message: "Failed to create message" });
     }
   });
 
