@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupAuth } from "./auth";
 
 const app = express();
 app.use(express.json());
@@ -37,6 +38,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Setup authentication first
+  await setupAuth(app);
+
+  // Then register routes
   const server = registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -44,9 +49,10 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    console.error(err); // Log the error instead of throwing
   });
 
+  // Setup Vite or static serving
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
