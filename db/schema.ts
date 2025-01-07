@@ -41,10 +41,41 @@ export const channelMembers = pgTable("channel_members", {
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
 
+// Direct Messages tables
+export const directMessageConversations = pgTable("direct_message_conversations", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+});
+
+export const directMessageParticipants = pgTable("direct_message_participants", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id")
+    .references(() => directMessageConversations.id, { onDelete: 'cascade' })
+    .notNull(),
+  userId: integer("user_id")
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+});
+
+export const directMessages = pgTable("direct_messages", {
+  id: serial("id").primaryKey(),
+  content: text("content").notNull(),
+  conversationId: integer("conversation_id")
+    .references(() => directMessageConversations.id, { onDelete: 'cascade' })
+    .notNull(),
+  senderId: integer("sender_id")
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   messages: many(messages),
   channels: many(channelMembers),
+  directMessageParticipations: many(directMessageParticipants),
+  sentDirectMessages: many(directMessages, { relationName: "sender" }),
 }));
 
 export const channelsRelations = relations(channels, ({ many }) => ({
@@ -79,6 +110,33 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
   }),
 }));
 
+export const directMessageConversationsRelations = relations(directMessageConversations, ({ many }) => ({
+  participants: many(directMessageParticipants),
+  messages: many(directMessages),
+}));
+
+export const directMessageParticipantsRelations = relations(directMessageParticipants, ({ one }) => ({
+  conversation: one(directMessageConversations, {
+    fields: [directMessageParticipants.conversationId],
+    references: [directMessageConversations.id],
+  }),
+  user: one(users, {
+    fields: [directMessageParticipants.userId],
+    references: [users.id],
+  }),
+}));
+
+export const directMessagesRelations = relations(directMessages, ({ one }) => ({
+  conversation: one(directMessageConversations, {
+    fields: [directMessages.conversationId],
+    references: [directMessageConversations.id],
+  }),
+  sender: one(users, {
+    fields: [directMessages.senderId],
+    references: [users.id],
+  }),
+}));
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -89,11 +147,17 @@ export type NewUser = typeof users.$inferInsert;
 export type Channel = typeof channels.$inferSelect;
 export type ChannelMember = typeof channelMembers.$inferSelect;
 export type BaseMessage = typeof messages.$inferSelect;
+export type DirectMessage = typeof directMessages.$inferSelect;
+export type DirectMessageConversation = typeof directMessageConversations.$inferSelect;
 
 // Extended types for API responses
 export interface Message extends BaseMessage {
   user: Omit<User, 'password'>;
   replies?: Message[];
+}
+
+export interface DirectMessageWithSender extends DirectMessage {
+  sender: Omit<User, 'password'>;
 }
 
 // Re-export types without password for security
