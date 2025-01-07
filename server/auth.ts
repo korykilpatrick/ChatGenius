@@ -19,7 +19,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
@@ -36,13 +36,15 @@ const upload = multer({
   }
 });
 
-// Extend express-session types to include user property
+// Update the type definitions to include new fields
 declare module "express-session" {
   interface SessionData {
     user: {
       id: number;
       username: string;
       avatar?: string;
+      title?: string;
+      bio?: string;
     } | undefined;
   }
 }
@@ -54,6 +56,8 @@ declare global {
         id: number;
         username: string;
         avatar?: string;
+        title?: string;
+        bio?: string;
       };
       isAuthenticated(): boolean;
     }
@@ -109,10 +113,18 @@ export async function setupAuth(app: Express) {
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
         });
 
       if (user.avatar === null) {
         user.avatar = undefined;
+      }
+      if (user.title === null) {
+        user.title = undefined;
+      }
+      if (user.bio === null) {
+        user.bio = undefined;
       }
 
       req.session.user = user;
@@ -138,6 +150,8 @@ export async function setupAuth(app: Express) {
         id: user.id,
         username: user.username,
         avatar: user.avatar || undefined,
+        title: user.title || undefined,
+        bio: user.bio || undefined,
       };
 
       req.session.user = userData;
@@ -165,7 +179,7 @@ export async function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    const { username } = req.body;
+    const { username, title, bio } = req.body;
 
     try {
       const existingUser = await db
@@ -179,16 +193,24 @@ export async function setupAuth(app: Express) {
 
       const [updatedUser] = await db
         .update(users)
-        .set({ username })
+        .set({ username, title, bio })
         .where(eq(users.id, req.user!.id))
         .returning({
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
         });
 
       if (updatedUser.avatar === null) {
         updatedUser.avatar = undefined;
+      }
+      if (updatedUser.title === null) {
+        updatedUser.title = undefined;
+      }
+      if (updatedUser.bio === null) {
+        updatedUser.bio = undefined;
       }
 
       req.session.user = updatedUser;
@@ -218,6 +240,8 @@ export async function setupAuth(app: Express) {
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
         });
 
       if (updatedUser.avatar === null) {
