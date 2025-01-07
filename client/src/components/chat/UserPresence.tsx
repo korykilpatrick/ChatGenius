@@ -24,7 +24,7 @@ export default function UserPresence() {
     <div className="relative">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
+          <Button variant="ghost" className="relative h-8 w-8 p-0 rounded-full">
             <Avatar>
               <AvatarImage src={avatarUrl} />
               <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
