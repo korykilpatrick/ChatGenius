@@ -5,18 +5,16 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 async function migrate() {
-  // Get all users with only necessary columns
+  // Get all users
   const allUsers = await db
-    .select({
-      id: users.id,
-      username: users.username
-    })
+    .select()
     .from(users);
   
   // Update each user with a new hashed password
   for (const user of allUsers) {
     const hashedPassword = await bcrypt.hash("temppass123", 10);
-    await db.update(users)
+    await db
+      .update(users)
       .set({ password: hashedPassword })
       .where(eq(users.id, user.id));
   }
