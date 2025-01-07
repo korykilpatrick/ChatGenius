@@ -34,7 +34,7 @@ export default function MessageList({
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
-      console.log(message);
+      console.log("Received websocket message:", message);
       if (
         message.type === "message_created" &&
         message.payload.message.channelId === channelId
@@ -43,7 +43,18 @@ export default function MessageList({
           [`/api/channels/${channelId}/messages`],
           (oldData: Message[] = []) => {
             const { message: newMessage, user } = message.payload;
-            return [...oldData, { ...newMessage, user }];
+            // Prepend new message to match desc sort order
+            return [{ ...newMessage, user }, ...oldData];
+          },
+        );
+      } else if (message.type === "message_reaction_updated") {
+        const { messageId, reactions } = message.payload;
+        queryClient.setQueryData(
+          [`/api/channels/${channelId}/messages`],
+          (oldData: Message[] = []) => {
+            return oldData.map((msg) =>
+              msg.id === messageId ? { ...msg, reactions } : msg
+            );
           },
         );
       }
