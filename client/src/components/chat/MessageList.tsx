@@ -52,19 +52,22 @@ export default function MessageList({
             "[MessageList] Updating messages for channel:",
             channelId,
           );
-          queryClient.setQueryData(
-            [`/api/channels/${channelId}/messages`],
-            (oldData: Message[] = []) => {
-              const newMessage = {
-                ...message.payload.message,
-                user: message.payload.user,
-              };
-              console.log("[MessageList] Adding new message:", newMessage);
-              // Only add if message doesn't exist already
-              const exists = oldData.some((msg) => msg.id === newMessage.id);
-              return exists ? oldData : [newMessage, ...oldData];
-            },
-          );
+          // Only add to main feed if it's not a thread reply
+          if (!message.payload.message.parentId) {
+            queryClient.setQueryData(
+              [`/api/channels/${channelId}/messages`],
+              (oldData: Message[] = []) => {
+                const newMessage = {
+                  ...message.payload.message,
+                  user: message.payload.user,
+                };
+                console.log("[MessageList] Adding new message:", newMessage);
+                // Only add if message doesn't exist already
+                const exists = oldData.some((msg) => msg.id === newMessage.id);
+                return exists ? oldData : [newMessage, ...oldData];
+              },
+            );
+          }
         }
       } else if (message.type === "message_reaction_updated") {
         console.log(
