@@ -28,7 +28,15 @@ export default function ChatPage() {
       <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
         <h1 className="text-xl font-bold">ChatGenius</h1>
         <div className="flex items-center gap-4">
-          <UserPresence />
+          <Link href="/profile" className="flex items-center gap-2 hover:opacity-80">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={user?.avatar || undefined} />
+              <AvatarFallback>
+                {user?.username?.[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium">{user?.username}</span>
+          </Link>
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         </div>
       </header>
