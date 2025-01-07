@@ -58,7 +58,7 @@ export function setupWebSocket(server: Server) {
               if (!reactions[reaction].includes(userId)) {
                 reactions[reaction].push(userId);
               } else {
-                reactions[reaction] = reactions[reaction].filter(id => id !== userId);
+                reactions[reaction] = reactions[reaction].filter((id: number) => id !== userId);
               }
 
               const [updatedMessage] = await db
@@ -110,6 +110,7 @@ export function setupWebSocket(server: Server) {
                 .limit(1);
 
               if (userData) {
+                // Changed the type to 'message_created' to match client expectation
                 const response = {
                   type: "message_created",
                   payload: {
