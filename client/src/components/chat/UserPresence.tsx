@@ -24,30 +24,24 @@ export default function UserPresence() {
     <div className="relative">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Avatar className="h-8 w-8 hover:bg-accent cursor-pointer">
-            <AvatarImage src={avatarUrl} />
-            <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <Avatar>
+              <AvatarImage src={avatarUrl} />
+              <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuPortal>
-          <DropdownMenuContent align="end" sideOffset={4}>
-          <DropdownMenuItem 
-            onClick={() => setLocation("/profile")} 
-            className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md"
-          >
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setLocation("/profile")}>
             <User className="mr-2 h-4 w-4" />
             <span>View Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator className="my-1" />
-          <DropdownMenuItem 
-            onClick={() => logout()} 
-            className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md text-red-600 hover:text-red-700"
-          >
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => logout()} className="text-red-600">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Logout</span>
           </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenuPortal>
+        </DropdownMenuContent>
       </DropdownMenu>
     </div>
   );
