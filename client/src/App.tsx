@@ -3,7 +3,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { useUser } from "@/hooks/use-user";
-import { Navbar } from "@/components/Navbar";
 import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -15,20 +14,17 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      {user && <Navbar />}
-      <div className="container mx-auto px-4">
-        <Switch>
-          <Route path="/login">
-            {user ? <Redirect to="/" /> : <AuthPage />}
-          </Route>
-          <Route path="/profile">
-            {user ? <ProfilePage /> : <Redirect to="/login" />}
-          </Route>
-          <Route path="/">
-            {user ? <ChatPage /> : <Redirect to="/login" />}
-          </Route>
-        </Switch>
-      </div>
+      <Switch>
+        <Route path="/login">
+          {user ? <Redirect to="/" /> : <AuthPage />}
+        </Route>
+        <Route path="/profile">
+          {user ? <ProfilePage /> : <Redirect to="/login" />}
+        </Route>
+        <Route path="/">
+          {user ? <ChatPage /> : <Redirect to="/login" />}
+        </Route>
+      </Switch>
     </div>
   );
 }
