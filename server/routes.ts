@@ -7,14 +7,28 @@ import { channels, messages, channelMembers, users } from "@db/schema";
 import { eq, and, desc, asc, isNull } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication routes
+  // Setup authentication routes first
   setupAuth(app);
 
-  // Create HTTP server first
+  // Create HTTP server
   const httpServer = createServer(app);
 
   // Setup WebSocket after HTTP server
   setupWebSocket(httpServer);
+
+  // Protect all API routes except auth routes
+  app.use("/api", (req, res, next) => {
+    if (req.path.startsWith("/api/login") || 
+        req.path.startsWith("/api/register") || 
+        req.path.startsWith("/api/user") && req.method === "GET") {
+      return next();
+    }
+
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    next();
+  });
 
   // Channels
   app.get("/api/channels", async (_req, res) => {

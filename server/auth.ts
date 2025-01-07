@@ -5,6 +5,16 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import session from "express-session";
 
+// Extend express-session types to include user property
+declare module "express-session" {
+  interface SessionData {
+    user: {
+      id: number;
+      username: string;
+    } | undefined;
+  }
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -92,5 +102,36 @@ export async function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     res.json(req.user);
+  });
+
+  app.put("/api/user/profile", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { username } = req.body;
+
+    try {
+      const existingUser = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, username));
+
+      if (existingUser.length > 0 && existingUser[0].id !== req.user?.id) {
+        return res.status(400).json({ message: "Username already taken" });
+      }
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ username })
+        .where(eq(users.id, req.user!.id))
+        .returning({ id: users.id, username: users.username });
+
+      req.session.user = updatedUser;
+
+      res.json({ message: "Profile updated successfully", user: updatedUser });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update profile" });
+    }
   });
 }
