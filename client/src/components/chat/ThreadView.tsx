@@ -13,6 +13,29 @@ type ThreadViewProps = {
 };
 
 export default function ThreadView({ message, onClose }: ThreadViewProps) {
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
+  
+  useEffect(() => {
+    const unsubscribe = subscribe((wsMessage) => {
+      if (wsMessage.type === "message_created" && wsMessage.payload.message.parentId === message.id) {
+        queryClient.setQueryData(
+          [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+          (oldData: Message[] = []) => {
+            const newReply = {
+              ...wsMessage.payload.message,
+              user: wsMessage.payload.user,
+            };
+            const exists = oldData.some((msg) => msg.id === newReply.id);
+            return exists ? oldData : [...oldData, newReply];
+          }
+        );
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [message.id, message.channelId, queryClient, subscribe]);
+
   const { data: replies = [] } = useQuery<Message[]>({
     queryKey: [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
   });

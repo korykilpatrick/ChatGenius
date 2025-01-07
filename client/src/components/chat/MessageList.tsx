@@ -31,7 +31,8 @@ export default function MessageList({
     queryKey: [`/api/channels/${channelId}/messages`],
     queryFn: async () => {
       const res = await fetch(`/api/channels/${channelId}/messages`);
-      return res.json();
+      const allMessages = await res.json();
+      return allMessages.filter(msg => !msg.parentId);
     },
   });
 
