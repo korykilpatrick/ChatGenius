@@ -62,9 +62,9 @@ export default function MessageList({
     };
   }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
 
-  const handleReaction = (messageId: number, reaction: string) => {
-    sendMessage("message_reaction", { messageId, reaction });
-  };
+  const handleReaction = useCallback((messageId: number, reaction: string, userId?: number) => {
+    sendMessage("message_reaction", { messageId, reaction, userId });
+  }, [sendMessage]);
 
   return (
     <div className="h-full flex flex-col">
@@ -124,7 +124,7 @@ export default function MessageList({
                             key={reaction}
                             variant="ghost"
                             className="h-8 w-8 p-0"
-                            onClick={() => handleReaction(message.id, reaction)}
+                            onClick={() => handleReaction(message.id, reaction, message.user.id)}
                           >
                             {reaction}
                           </Button>

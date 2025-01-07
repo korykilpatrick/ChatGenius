@@ -43,7 +43,7 @@ export function setupWebSocket(server: Server) {
         console.log("Received message:", message);
 
         if (message.type === "message_reaction") {
-          const { messageId, reaction } = message.payload;
+          const { messageId, reaction, userId } = message.payload;
           try {
             const [existingMessage] = await db
               .select()
