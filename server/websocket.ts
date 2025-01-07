@@ -109,31 +109,13 @@ export function setupWebSocket(server: Server) {
                 .where(eq(users.id, userId))
                 .limit(1);
 
-              // If this is a thread reply, update the parent message's reply count
-              let parentMessage = null;
-              if (parentId) {
-                const [parent] = await db
-                  .select()
-                  .from(messages)
-                  .where(eq(messages.id, parentId))
-                  .limit(1);
-
-                if (parent) {
-                  parentMessage = {
-                    ...parent,
-                    user: userData,
-                  };
-                }
-              }
-
               if (userData) {
-                // Send back message_created type with thread info
+                // Send back message_created type to match client expectation
                 const response = {
                   type: "message_created",
                   payload: {
                     message: newMessage,
                     user: userData,
-                    parent: parentMessage,
                   },
                 };
 

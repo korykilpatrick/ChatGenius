@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,86 +25,90 @@ export default function MessageList({
   channelId,
   onThreadSelect,
 }: MessageListProps) {
+  console.log("Message list component is rendering");
   const queryClient = useQueryClient();
-  const { data: messages = [], refetch } = useQuery<Message[]>({
+  const { data: messages = [] } = useQuery<Message[]>({
     queryKey: [`/api/channels/${channelId}/messages`],
+    queryFn: async () => {
+      const res = await fetch(`/api/channels/${channelId}/messages`);
+      return res.json();
+    },
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
-  const channelRef = useRef(channelId);
-
-  useEffect(() => {
-    channelRef.current = channelId;
-  }, [channelId]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
-      if (message.type === "message_created") {
-        const { message: newMessage, user } = message.payload;
+      console.log("[MessageList] Processing WebSocket message:", message);
 
-        if (newMessage.channelId === channelRef.current) {
-          if (newMessage.parentId) {
-            // Update parent message's replies
-            queryClient.setQueryData(
-              [`/api/channels/${channelId}/messages`],
-              (oldData: Message[] = []) => {
-                return oldData.map(msg => {
-                  if (msg.id === newMessage.parentId) {
-                    const replies = msg.replies || [];
-                    const updatedReplies = [
-                      { ...newMessage, user },
-                      ...replies
-                    ].slice(0, 3);
-                    return { ...msg, replies: updatedReplies };
-                  }
-                  return msg;
-                });
-              }
-            );
-          } else {
-            // Add new message to the list
-            queryClient.setQueryData(
-              [`/api/channels/${channelId}/messages`],
-              (oldData: Message[] = []) => {
-                const messageWithUser = {
-                  ...newMessage,
-                  user,
-                  replies: [],
-                };
-                return [messageWithUser, ...oldData];
-              }
-            );
-          }
+      if (message.type === "message_created") {
+        console.log(
+          "[MessageList] Received message_created event:",
+          message.payload,
+        );
+        if (message.payload.message.channelId === channelId) {
+          console.log(
+            "[MessageList] Updating messages for channel:",
+            channelId,
+          );
+          queryClient.setQueryData(
+            [`/api/channels/${channelId}/messages`],
+            (oldData: Message[] = []) => {
+              const newMessage = {
+                ...message.payload.message,
+                user: message.payload.user,
+              };
+              console.log("[MessageList] Adding new message:", newMessage);
+              // Only add if message doesn't exist already
+              const exists = oldData.some((msg) => msg.id === newMessage.id);
+              return exists ? oldData : [newMessage, ...oldData];
+            },
+          );
         }
       } else if (message.type === "message_reaction_updated") {
+        console.log(
+          "[MessageList] Updating message reaction:",
+          message.payload,
+        );
         const { messageId, reactions } = message.payload;
         queryClient.setQueryData(
           [`/api/channels/${channelId}/messages`],
           (oldData: Message[] = []) => {
             return oldData.map((msg) =>
-              msg.id === messageId ? { ...msg, reactions } : msg
+              msg.id === messageId ? { ...msg, reactions } : msg,
             );
-          }
+          },
         );
       }
     },
-    [channelId, queryClient]
+    [channelId, queryClient],
   );
 
   useEffect(() => {
-    if (!isConnected) return;
+    console.log("Channel ID:", channelId, "Connected?", isConnected);
 
+    if (!channelId) return;
+
+    console.log(
+      "[MessageList] Setting up WebSocket subscription for channel:",
+      channelId,
+    );
     const unsubscribe = subscribe(handleWebSocketMessage);
+
     return () => {
+      console.log(
+        "[MessageList] Cleaning up WebSocket subscription for channel:",
+        channelId,
+      );
       unsubscribe();
     };
-  }, [isConnected, subscribe, handleWebSocketMessage]);
+  }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
 
   const handleReaction = useCallback(
-    (messageId: number, reaction: string) => {
-      sendMessage("message_reaction", { messageId, reaction });
+    (messageId: number, reaction: string, userId?: number) => {
+      sendMessage("message_reaction", { messageId, reaction, userId });
     },
-    [sendMessage]
+    [sendMessage],
   );
 
   return (
@@ -131,21 +135,23 @@ export default function MessageList({
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.reactions &&
-                    Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
+                    Object.entries(
+                      message.reactions as Record<string, number[]>,
+                    ).length > 0 && (
                       <div className="flex gap-1 mt-2">
-                        {Object.entries(message.reactions as Record<string, number[]>).map(
-                          ([reaction, userIds]) => (
-                            <Button
-                              key={reaction}
-                              variant="secondary"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={() => handleReaction(message.id, reaction)}
-                            >
-                              {reaction} {userIds.length}
-                            </Button>
-                          )
-                        )}
+                        {Object.entries(
+                          message.reactions as Record<string, number[]>,
+                        ).map(([reaction, userIds]) => (
+                          <Button
+                            key={reaction}
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => handleReaction(message.id, reaction)}
+                          >
+                            {reaction} {userIds.length}
+                          </Button>
+                        ))}
                       </div>
                     )}
                 </div>
@@ -163,7 +169,13 @@ export default function MessageList({
                             key={reaction}
                             variant="ghost"
                             className="h-8 w-8 p-0"
-                            onClick={() => handleReaction(message.id, reaction)}
+                            onClick={() =>
+                              handleReaction(
+                                message.id,
+                                reaction,
+                                message.user.id,
+                              )
+                            }
                           >
                             {reaction}
                           </Button>
@@ -187,7 +199,7 @@ export default function MessageList({
                   className="ml-12 mt-2 text-xs"
                   onClick={() => onThreadSelect(message)}
                 >
-                  {message.replies.length} {message.replies.length === 1 ? 'reply' : 'replies'}
+                  {message.replies.length} replies
                 </Button>
               )}
             </div>

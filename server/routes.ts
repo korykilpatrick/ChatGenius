@@ -7,10 +7,16 @@ import { channels, messages, channelMembers, users } from "@db/schema";
 import { eq, and, desc, asc, isNull } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
+  // Setup authentication routes first
   setupAuth(app);
+
+  // Create HTTP server
   const httpServer = createServer(app);
+
+  // Setup WebSocket after HTTP server
   setupWebSocket(httpServer);
 
+  // Protect all API routes except auth routes
   app.use("/api", (req, res, next) => {
     if (req.path.startsWith("/api/login") || 
         req.path.startsWith("/api/register") || 
@@ -24,6 +30,7 @@ export function registerRoutes(app: Express): Server {
     next();
   });
 
+  // Channels
   app.get("/api/channels", async (_req, res) => {
     const userChannels = await db.select().from(channels);
     res.json(userChannels);
@@ -31,157 +38,77 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/channels", async (req, res) => {
     const { name, description, isPrivate } = req.body;
+
     const [channel] = await db.insert(channels)
       .values({ name, description, isPrivate: isPrivate || false })
       .returning();
+
     res.json(channel);
   });
 
+  // Messages
   app.get("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
 
-    try {
-      // First get all parent messages
-      const parentMessages = await db
-        .select({
-          id: messages.id,
-          content: messages.content,
-          userId: messages.userId,
-          channelId: messages.channelId,
-          reactions: messages.reactions,
-          files: messages.files,
-          createdAt: messages.createdAt,
-          user: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar
-          }
-        })
-        .from(messages)
-        .leftJoin(users, eq(messages.userId, users.id))
-        .where(
-          and(
-            eq(messages.channelId, channelId),
-            isNull(messages.parentId)
-          )
-        )
-        .orderBy(desc(messages.createdAt));
+    // Get all parent messages (messages without a parentId)
+    const channelMessages = await db
+      .select({
+        message: messages,
+        user: {
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        }
+      })
+      .from(messages)
+      .where(and(
+        eq(messages.channelId, channelId),
+        isNull(messages.parentId)
+      ))
+      .innerJoin(users, eq(users.id, messages.userId))
+      .orderBy(desc(messages.createdAt));
 
-      // For each parent message, get up to 3 latest replies
-      const messagesWithReplies = await Promise.all(
-        parentMessages.map(async (parentMsg) => {
-          const replies = await db
-            .select({
-              id: messages.id,
-              content: messages.content,
-              userId: messages.userId,
-              channelId: messages.channelId,
-              reactions: messages.reactions,
-              files: messages.files,
-              createdAt: messages.createdAt,
-              user: {
-                id: users.id,
-                username: users.username,
-                avatar: users.avatar
-              }
-            })
-            .from(messages)
-            .leftJoin(users, eq(messages.userId, users.id))
-            .where(eq(messages.parentId, parentMsg.id))
-            .orderBy(desc(messages.createdAt))
-            .limit(3);
+    // Get the reply count for each parent message
+    const messagesWithReplies = await Promise.all(
+      channelMessages.map(async ({ message, user }) => {
+        const replies = await db
+          .select()
+          .from(messages)
+          .where(eq(messages.parentId, message.id));
 
-          return {
-            ...parentMsg,
-            replies: replies.reverse()
-          };
-        })
-      );
+        return {
+          ...message,
+          user,
+          replies: replies || [],
+        };
+      })
+    );
 
-      res.json(messagesWithReplies);
-    } catch (error) {
-      console.error("Error fetching messages:", error);
-      res.status(500).json({ message: "Failed to fetch messages" });
-    }
+    res.json(messagesWithReplies);
   });
 
+  // Thread replies
   app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
     const messageId = parseInt(req.params.messageId);
 
-    try {
-      const replies = await db
-        .select({
-          id: messages.id,
-          content: messages.content,
-          userId: messages.userId,
-          channelId: messages.channelId,
-          reactions: messages.reactions,
-          files: messages.files,
-          createdAt: messages.createdAt,
-          user: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar
-          }
-        })
-        .from(messages)
-        .leftJoin(users, eq(messages.userId, users.id))
-        .where(eq(messages.parentId, messageId))
-        .orderBy(asc(messages.createdAt));
+    const replies = await db
+      .select({
+        message: messages,
+        user: {
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        }
+      })
+      .from(messages)
+      .where(eq(messages.parentId, messageId))
+      .innerJoin(users, eq(users.id, messages.userId))
+      .orderBy(asc(messages.createdAt));
 
-      res.json(replies);
-    } catch (error) {
-      console.error("Error fetching replies:", error);
-      res.status(500).json({ message: "Failed to fetch replies" });
-    }
-  });
-
-  app.post("/api/channels/:channelId/messages", async (req, res) => {
-    const channelId = parseInt(req.params.channelId);
-    const { content, parentId } = req.body;
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    try {
-      const [newMessage] = await db
-        .insert(messages)
-        .values({
-          channelId,
-          content,
-          userId,
-          parentId: parentId || null,
-        })
-        .returning();
-
-      const [messageWithUser] = await db
-        .select({
-          id: messages.id,
-          content: messages.content,
-          userId: messages.userId,
-          channelId: messages.channelId,
-          parentId: messages.parentId,
-          reactions: messages.reactions,
-          files: messages.files,
-          createdAt: messages.createdAt,
-          user: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar
-          }
-        })
-        .from(messages)
-        .leftJoin(users, eq(messages.userId, users.id))
-        .where(eq(messages.id, newMessage.id))
-        .limit(1);
-
-      res.json(messageWithUser);
-    } catch (error) {
-      console.error("Error creating message:", error);
-      res.status(500).json({ message: "Failed to create message" });
-    }
+    res.json(replies.map(({ message, user }) => ({
+      ...message,
+      user,
+    })));
   });
 
   return httpServer;
