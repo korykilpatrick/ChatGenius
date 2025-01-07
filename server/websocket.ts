@@ -110,7 +110,7 @@ export function setupWebSocket(server: Server) {
                 .limit(1);
 
               if (userData) {
-                // Changed the type to 'message_created' to match client expectation
+                // Send back message_created type to match client expectation
                 const response = {
                   type: "message_created",
                   payload: {
@@ -122,6 +122,7 @@ export function setupWebSocket(server: Server) {
                 // Broadcast to all clients
                 for (const client of clients) {
                   if (client.readyState === WebSocket.OPEN) {
+                    console.log("Sending to client:", response);
                     client.send(JSON.stringify(response));
                   }
                 }
