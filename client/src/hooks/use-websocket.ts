@@ -59,8 +59,8 @@ export function useWebSocket() {
 
       globalWs.onmessage = (event) => {
         try {
-          console.log("Received from server:", event.data);
           const message = JSON.parse(event.data) as WebSocketMessage;
+          console.log("Received message:", message);
           messageCallbacks.forEach((cb) => cb(message));
         } catch (error) {
           console.error("Failed to parse message:", error);
@@ -117,15 +117,12 @@ export function useWebSocket() {
     [toast],
   );
 
-  const subscribe = useCallback(
-    (callback: (message: WebSocketMessage) => void) => {
-      messageCallbacks.add(callback);
-      return () => {
-        messageCallbacks.delete(callback);
-      };
-    },
-    [],
-  );
+  const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
+    messageCallbacks.add(callback);
+    return () => {
+      messageCallbacks.delete(callback);
+    };
+  }, []);
 
   return { isConnected, sendMessage, subscribe };
 }

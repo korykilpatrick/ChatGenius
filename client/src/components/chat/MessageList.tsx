@@ -39,12 +39,15 @@ export default function MessageList({
         message.type === "message_created" &&
         message.payload.message.channelId === channelId
       ) {
+        console.log("Updating messages with:", message.payload);
         queryClient.setQueryData(
           [`/api/channels/${channelId}/messages`],
           (oldData: Message[] = []) => {
-            const { message: newMessage, user } = message.payload;
-            // Prepend new message to match desc sort order
-            return [{ ...newMessage, user }, ...oldData];
+            const newMessage = {
+              ...message.payload.message,
+              user: message.payload.user,
+            };
+            return [newMessage, ...oldData];
           },
         );
       } else if (message.type === "message_reaction_updated") {
@@ -53,7 +56,7 @@ export default function MessageList({
           [`/api/channels/${channelId}/messages`],
           (oldData: Message[] = []) => {
             return oldData.map((msg) =>
-              msg.id === messageId ? { ...msg, reactions } : msg
+              msg.id === messageId ? { ...msg, reactions } : msg,
             );
           },
         );
@@ -65,17 +68,21 @@ export default function MessageList({
   useEffect(() => {
     if (!channelId || !isConnected) return;
 
-    const unsub = subscribe(handleWebSocketMessage);
+    console.log("Setting up WebSocket subscription for channel:", channelId);
+    const unsubscribe = subscribe(handleWebSocketMessage);
+
     return () => {
-      if (typeof unsub === "function") {
-        unsub();
-      }
+      console.log("Cleaning up WebSocket subscription for channel:", channelId);
+      unsubscribe();
     };
   }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
 
-  const handleReaction = useCallback((messageId: number, reaction: string, userId?: number) => {
-    sendMessage("message_reaction", { messageId, reaction, userId });
-  }, [sendMessage]);
+  const handleReaction = useCallback(
+    (messageId: number, reaction: string, userId?: number) => {
+      sendMessage("message_reaction", { messageId, reaction, userId });
+    },
+    [sendMessage],
+  );
 
   return (
     <div className="h-full flex flex-col">
@@ -101,9 +108,8 @@ export default function MessageList({
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.reactions &&
-                    Object.entries(
-                      message.reactions as Record<string, number[]>,
-                    ).length > 0 && (
+                    Object.entries(message.reactions as Record<string, number[]>)
+                      .length > 0 && (
                       <div className="flex gap-1 mt-2">
                         {Object.entries(
                           message.reactions as Record<string, number[]>,
@@ -135,7 +141,9 @@ export default function MessageList({
                             key={reaction}
                             variant="ghost"
                             className="h-8 w-8 p-0"
-                            onClick={() => handleReaction(message.id, reaction, message.user.id)}
+                            onClick={() =>
+                              handleReaction(message.id, reaction, message.user.id)
+                            }
                           >
                             {reaction}
                           </Button>
