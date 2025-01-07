@@ -7,16 +7,10 @@ import { channels, messages, channelMembers, users } from "@db/schema";
 import { eq, and, desc, asc, isNull } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
-  // Setup authentication routes first
   setupAuth(app);
-
-  // Create HTTP server
   const httpServer = createServer(app);
-
-  // Setup WebSocket after HTTP server
   setupWebSocket(httpServer);
 
-  // Protect all API routes except auth routes
   app.use("/api", (req, res, next) => {
     if (req.path.startsWith("/api/login") || 
         req.path.startsWith("/api/register") || 
@@ -30,7 +24,6 @@ export function registerRoutes(app: Express): Server {
     next();
   });
 
-  // Channels
   app.get("/api/channels", async (_req, res) => {
     const userChannels = await db.select().from(channels);
     res.json(userChannels);
@@ -38,15 +31,12 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/channels", async (req, res) => {
     const { name, description, isPrivate } = req.body;
-
     const [channel] = await db.insert(channels)
       .values({ name, description, isPrivate: isPrivate || false })
       .returning();
-
     res.json(channel);
   });
 
-  // Get channel messages (only parent messages)
   app.get("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
 
@@ -61,7 +51,6 @@ export function registerRoutes(app: Express): Server {
           reactions: messages.reactions,
           files: messages.files,
           createdAt: messages.createdAt,
-          updatedAt: messages.updatedAt,
           user: {
             id: users.id,
             username: users.username,
@@ -90,7 +79,6 @@ export function registerRoutes(app: Express): Server {
               reactions: messages.reactions,
               files: messages.files,
               createdAt: messages.createdAt,
-              updatedAt: messages.updatedAt,
               user: {
                 id: users.id,
                 username: users.username,
@@ -117,7 +105,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get replies for a specific message
   app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
     const messageId = parseInt(req.params.messageId);
 
@@ -131,7 +118,6 @@ export function registerRoutes(app: Express): Server {
           reactions: messages.reactions,
           files: messages.files,
           createdAt: messages.createdAt,
-          updatedAt: messages.updatedAt,
           user: {
             id: users.id,
             username: users.username,
@@ -150,7 +136,6 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Create a new message or thread reply
   app.post("/api/channels/:channelId/messages", async (req, res) => {
     const channelId = parseInt(req.params.channelId);
     const { content, parentId } = req.body;
@@ -181,7 +166,6 @@ export function registerRoutes(app: Express): Server {
           reactions: messages.reactions,
           files: messages.files,
           createdAt: messages.createdAt,
-          updatedAt: messages.updatedAt,
           user: {
             id: users.id,
             username: users.username,

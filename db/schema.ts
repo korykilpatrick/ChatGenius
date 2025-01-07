@@ -32,7 +32,6 @@ export const messages = pgTable("messages", {
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const channelMembers = pgTable("channel_members", {
@@ -68,8 +67,6 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     relationName: "thread",
   }),
   replies: many(messages, {
-    fields: [messages.id],
-    references: [messages.parentId],
     relationName: "thread",
   }),
 }));
