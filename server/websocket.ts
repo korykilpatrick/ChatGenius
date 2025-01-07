@@ -3,7 +3,6 @@ import { Server } from "http";
 import { db } from "@db";
 import { messages, users } from "@db/schema";
 import { eq, and } from "drizzle-orm";
-import { QueryResult } from "drizzle-orm"; // Import QueryResult
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -84,12 +83,10 @@ export function setupWebSocket(server: Server) {
           }
         } else if (message.type === "new_message") {
           const { channelId, content, userId, parentId } = message.payload;
-          console.log(channelId, content, userId, parentId);
-          console.log("about to");
           if (!channelId || !content || !userId) return;
-          console.log("TRY");
+
           try {
-            console.log("okkk", message);
+            // Insert the message
             const [newMessage] = await db
               .insert(messages)
               .values({
@@ -98,29 +95,26 @@ export function setupWebSocket(server: Server) {
                 userId,
                 parentId: parentId || null,
               })
-              .returning(); // returns an array of inserted rows
-            console.log("newwww", newMessage);
+              .returning();
+
             if (newMessage) {
-              const [messageData] = await db
+              // Fetch user data for the response
+              const [userData] = await db
                 .select({
-                  message: messages,
-                  user: {
-                    id: users.id,
-                    username: users.username,
-                    avatar: users.avatar,
-                  },
+                  id: users.id,
+                  username: users.username,
+                  avatar: users.avatar,
                 })
-                .from(messages)
-                .where(eq(messages.id, newMessage.id))
-                .innerJoin(users, eq(users.id, messages.userId))
+                .from(users)
+                .where(eq(users.id, userId))
                 .limit(1);
 
-              if (messageData) {
+              if (userData) {
                 const response = {
                   type: "message_created",
                   payload: {
-                    message: messageData.message,
-                    user: messageData.user,
+                    message: newMessage,
+                    user: userData,
                   },
                 };
 
