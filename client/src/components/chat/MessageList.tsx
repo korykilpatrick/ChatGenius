@@ -25,9 +25,14 @@ export default function MessageList({
   channelId,
   onThreadSelect,
 }: MessageListProps) {
+  console.log("Message list component is rendering");
   const queryClient = useQueryClient();
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: [`/api/channels/${channelId}/messages`],
+    queryFn: async () => {
+      const res = await fetch(`/api/channels/${channelId}/messages`);
+      return res.json();
+    },
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
@@ -37,9 +42,15 @@ export default function MessageList({
       console.log("[MessageList] Processing WebSocket message:", message);
 
       if (message.type === "message_created") {
-        console.log("[MessageList] Received message_created event:", message.payload);
+        console.log(
+          "[MessageList] Received message_created event:",
+          message.payload,
+        );
         if (message.payload.message.channelId === channelId) {
-          console.log("[MessageList] Updating messages for channel:", channelId);
+          console.log(
+            "[MessageList] Updating messages for channel:",
+            channelId,
+          );
           queryClient.setQueryData(
             [`/api/channels/${channelId}/messages`],
             (oldData: Message[] = []) => {
@@ -49,13 +60,16 @@ export default function MessageList({
               };
               console.log("[MessageList] Adding new message:", newMessage);
               // Only add if message doesn't exist already
-              const exists = oldData.some(msg => msg.id === newMessage.id);
+              const exists = oldData.some((msg) => msg.id === newMessage.id);
               return exists ? oldData : [newMessage, ...oldData];
             },
           );
         }
       } else if (message.type === "message_reaction_updated") {
-        console.log("[MessageList] Updating message reaction:", message.payload);
+        console.log(
+          "[MessageList] Updating message reaction:",
+          message.payload,
+        );
         const { messageId, reactions } = message.payload;
         queryClient.setQueryData(
           [`/api/channels/${channelId}/messages`],
@@ -71,13 +85,21 @@ export default function MessageList({
   );
 
   useEffect(() => {
-    if (!channelId || !isConnected) return;
+    console.log("Channel ID:", channelId, "Connected?", isConnected);
 
-    console.log("[MessageList] Setting up WebSocket subscription for channel:", channelId);
+    if (!channelId) return;
+
+    console.log(
+      "[MessageList] Setting up WebSocket subscription for channel:",
+      channelId,
+    );
     const unsubscribe = subscribe(handleWebSocketMessage);
 
     return () => {
-      console.log("[MessageList] Cleaning up WebSocket subscription for channel:", channelId);
+      console.log(
+        "[MessageList] Cleaning up WebSocket subscription for channel:",
+        channelId,
+      );
       unsubscribe();
     };
   }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
@@ -113,7 +135,9 @@ export default function MessageList({
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.reactions &&
-                    Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
+                    Object.entries(
+                      message.reactions as Record<string, number[]>,
+                    ).length > 0 && (
                       <div className="flex gap-1 mt-2">
                         {Object.entries(
                           message.reactions as Record<string, number[]>,
@@ -146,7 +170,11 @@ export default function MessageList({
                             variant="ghost"
                             className="h-8 w-8 p-0"
                             onClick={() =>
-                              handleReaction(message.id, reaction, message.user.id)
+                              handleReaction(
+                                message.id,
+                                reaction,
+                                message.user.id,
+                              )
                             }
                           >
                             {reaction}

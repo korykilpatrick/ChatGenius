@@ -20,7 +20,7 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   const connect = useCallback(() => {
-    if (!user || globalWs?.readyState === WebSocket.OPEN || globalConnecting) {
+    if (globalWs?.readyState === WebSocket.OPEN || globalConnecting) {
       return;
     }
 
@@ -35,12 +35,14 @@ export function useWebSocket() {
         console.log("[WebSocket] Connected successfully");
         globalConnecting = false;
         connectedCallbacks.forEach((cb) => cb());
-        globalWs?.send(
-          JSON.stringify({
-            type: "user_connected",
-            payload: { userId: user.id },
-          }),
-        );
+        if (user) {
+          globalWs?.send(
+            JSON.stringify({
+              type: "user_connected",
+              payload: { userId: user.id },
+            }),
+          );
+        }
       };
 
       globalWs.onclose = (event) => {
@@ -59,6 +61,7 @@ export function useWebSocket() {
 
       globalWs.onmessage = (event) => {
         try {
+          console.log(event.data);
           const message = JSON.parse(event.data) as WebSocketMessage;
           console.log("[WebSocket] Received message:", message);
 
@@ -94,7 +97,7 @@ export function useWebSocket() {
     };
 
     connectedCallbacks.add(updateConnected);
-    if (user) connect();
+    connect();
 
     return () => {
       connectedCallbacks.delete(updateConnected);
@@ -131,14 +134,17 @@ export function useWebSocket() {
     [toast],
   );
 
-  const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
-    console.log("[WebSocket] Adding message callback");
-    messageCallbacks.add(callback);
-    return () => {
-      console.log("[WebSocket] Removing message callback");
-      messageCallbacks.delete(callback);
-    };
-  }, []);
+  const subscribe = useCallback(
+    (callback: (message: WebSocketMessage) => void) => {
+      console.log("[WebSocket] Adding message callback");
+      messageCallbacks.add(callback);
+      return () => {
+        console.log("[WebSocket] Removing message callback");
+        messageCallbacks.delete(callback);
+      };
+    },
+    [],
+  );
 
   return { isConnected, sendMessage, subscribe };
 }
