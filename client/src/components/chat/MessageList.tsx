@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,50 +26,52 @@ export default function MessageList({
   onThreadSelect,
 }: MessageListProps) {
   const queryClient = useQueryClient();
-  const { data: messages = [] } = useQuery<Message[]>({
+  const { data: messages = [], refetch } = useQuery<Message[]>({
     queryKey: [`/api/channels/${channelId}/messages`],
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
+  const channelRef = useRef(channelId);
+
+  useEffect(() => {
+    channelRef.current = channelId;
+  }, [channelId]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
       if (message.type === "message_created") {
-        if (message.payload.message.channelId === channelId) {
-          // For thread replies, we need to update the parent message's replies
-          if (message.payload.message.parentId) {
+        const { message: newMessage, user } = message.payload;
+
+        if (newMessage.channelId === channelRef.current) {
+          if (newMessage.parentId) {
+            // Update parent message's replies
             queryClient.setQueryData(
               [`/api/channels/${channelId}/messages`],
               (oldData: Message[] = []) => {
                 return oldData.map(msg => {
-                  if (msg.id === message.payload.message.parentId) {
-                    // Add the new reply to the beginning of the replies array
+                  if (msg.id === newMessage.parentId) {
                     const replies = msg.replies || [];
-                    const newReply = {
-                      ...message.payload.message,
-                      user: message.payload.user,
-                    };
-                    return {
-                      ...msg,
-                      replies: [newReply, ...replies].slice(0, 3) // Keep only the latest 3 replies
-                    };
+                    const updatedReplies = [
+                      { ...newMessage, user },
+                      ...replies
+                    ].slice(0, 3);
+                    return { ...msg, replies: updatedReplies };
                   }
                   return msg;
                 });
               }
             );
           } else {
-            // For new parent messages
+            // Add new message to the list
             queryClient.setQueryData(
               [`/api/channels/${channelId}/messages`],
               (oldData: Message[] = []) => {
-                const newMessage = {
-                  ...message.payload.message,
-                  user: message.payload.user,
+                const messageWithUser = {
+                  ...newMessage,
+                  user,
                   replies: [],
                 };
-                const exists = oldData.some((msg) => msg.id === newMessage.id);
-                return exists ? oldData : [newMessage, ...oldData];
+                return [messageWithUser, ...oldData];
               }
             );
           }
@@ -90,11 +92,13 @@ export default function MessageList({
   );
 
   useEffect(() => {
-    if (!channelId || !isConnected) return;
+    if (!isConnected) return;
 
     const unsubscribe = subscribe(handleWebSocketMessage);
-    return () => unsubscribe();
-  }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
+    return () => {
+      unsubscribe();
+    };
+  }, [isConnected, subscribe, handleWebSocketMessage]);
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string) => {
