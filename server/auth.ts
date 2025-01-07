@@ -96,11 +96,23 @@ export async function setupAuth(app: Express) {
   app.post("/api/register", async (req, res) => {
     const { username, password } = req.body;
 
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username and password are required" });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ message: "Username must be at least 3 characters" });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
     try {
       const existingUser = await db
         .select()
         .from(users)
-        .where(eq(users.username, username));
+        .where(eq(users.username, username.trim()));
       if (existingUser.length > 0) {
         return res.status(400).json({ message: "Username already exists" });
       }
@@ -108,7 +120,7 @@ export async function setupAuth(app: Express) {
       const hashedPassword = await bcrypt.hash(password, 10);
       const [user] = await db
         .insert(users)
-        .values({ username, password: hashedPassword })
+        .values({ username: username.trim(), password: hashedPassword })
         .returning({
           id: users.id,
           username: users.username,
@@ -117,20 +129,19 @@ export async function setupAuth(app: Express) {
           bio: users.bio,
         });
 
-      if (user.avatar === null) {
-        user.avatar = undefined;
-      }
-      if (user.title === null) {
-        user.title = undefined;
-      }
-      if (user.bio === null) {
-        user.bio = undefined;
-      }
+      // Clean up null values
+      const cleanUser = {
+        ...user,
+        avatar: user.avatar || undefined,
+        title: user.title || undefined,
+        bio: user.bio || undefined
+      };
 
-      req.session.user = user;
-      res.json({ message: "Registration successful", user });
+      req.session.user = cleanUser;
+      res.json({ message: "Registration successful", user: cleanUser });
     } catch (error) {
-      res.status(500).json({ message: "Registration failed" });
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Registration failed. Please try again." });
     }
   });
 
