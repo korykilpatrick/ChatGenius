@@ -9,6 +9,7 @@ import {
 import { useUser } from "@/hooks/use-user";
 import { LogOut, User } from "lucide-react";
 import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
 
 export default function UserPresence() {
   const { user, logout } = useUser();
@@ -22,13 +23,13 @@ export default function UserPresence() {
   return (
     <div className="relative">
       <DropdownMenu>
-        <DropdownMenuTrigger className="focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 rounded-full">
-          <div className="flex h-8 w-8 items-center justify-center hover:opacity-80">
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full">
             <Avatar>
               <AvatarImage src={avatarUrl} />
               <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
             </Avatar>
-          </div>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent 
           align="end" 
