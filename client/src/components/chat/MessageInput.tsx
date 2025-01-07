@@ -6,27 +6,47 @@ import { useUser } from "@/hooks/use-user";
 import { PaperclipIcon, SendIcon } from "lucide-react";
 
 type MessageInputProps = {
-  channelId: number;
+  channelId?: number;
+  userId?: number;
   parentId?: number;
 };
 
-export default function MessageInput({ channelId, parentId }: MessageInputProps) {
+export default function MessageInput({ channelId, userId, parentId }: MessageInputProps) {
   const [content, setContent] = useState("");
   const { sendMessage } = useWebSocket();
   const { user } = useUser();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || !user) return;
 
-    sendMessage("new_message", {
-      content: content.trim(),
-      channelId,
-      userId: user.id,
-      parentId
-    });
+    try {
+      if (channelId) {
+        // Channel message
+        sendMessage("new_message", {
+          content: content.trim(),
+          channelId,
+          userId: user.id,
+          parentId
+        });
+      } else if (userId) {
+        // DM message
+        const response = await fetch(`/api/dm/conversations/${userId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: content.trim() }),
+          credentials: 'include',
+        });
 
-    setContent("");
+        if (!response.ok) {
+          throw new Error("Failed to send message");
+        }
+      }
+
+      setContent("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

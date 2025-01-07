@@ -7,7 +7,6 @@ import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
 import ProfilePage from "./pages/ProfilePage";
 import UserProfilePage from "./pages/UserProfilePage";
-import DirectMessagePage from "./pages/DirectMessagePage";
 
 function App() {
   const { user, isLoading } = useUser();
@@ -25,9 +24,6 @@ function App() {
         </Route>
         <Route path="/profile/:id">
           {user ? <UserProfilePage /> : <Redirect to="/login" />}
-        </Route>
-        <Route path="/dm/:id">
-          {user ? <DirectMessagePage /> : <Redirect to="/login" />}
         </Route>
         <Route path="/">
           {user ? <ChatPage /> : <Redirect to="/login" />}
