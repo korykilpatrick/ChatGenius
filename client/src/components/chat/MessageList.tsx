@@ -48,7 +48,9 @@ export default function MessageList({
                 user: message.payload.user,
               };
               console.log("[MessageList] Adding new message:", newMessage);
-              return [newMessage, ...oldData];
+              // Only add if message doesn't exist already
+              const exists = oldData.some(msg => msg.id === newMessage.id);
+              return exists ? oldData : [newMessage, ...oldData];
             },
           );
         }
