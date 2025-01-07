@@ -8,6 +8,8 @@ import UserPresence from "@/components/chat/UserPresence";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useUser } from "@/hooks/use-user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DirectMessagesList } from "@/components/DirectMessagesList";
+import { Separator } from "@/components/ui/separator";
 import type { Message } from "@db/schema";
 
 export default function ChatPage() {
@@ -23,7 +25,7 @@ export default function ChatPage() {
         <div className="flex items-center gap-4">
           <Link href="/profile" className="flex items-center gap-2 hover:opacity-80">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={undefined} />
+              <AvatarImage src={user?.avatar || undefined} />
               <AvatarFallback>
                 {user?.username?.[0].toUpperCase()}
               </AvatarFallback>
@@ -36,10 +38,14 @@ export default function ChatPage() {
 
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <ChannelList 
-            selectedChannel={selectedChannel}
-            onSelectChannel={setSelectedChannel}
-          />
+          <div className="flex flex-col h-full">
+            <ChannelList 
+              selectedChannel={selectedChannel}
+              onSelectChannel={setSelectedChannel}
+            />
+            <Separator className="my-2" />
+            <DirectMessagesList />
+          </div>
         </ResizablePanel>
 
         <ResizableHandle />
