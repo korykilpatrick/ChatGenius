@@ -29,7 +29,6 @@ export const messages = pgTable("messages", {
   userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   channelId: integer("channel_id").references(() => channels.id, { onDelete: 'cascade' }).notNull(),
   parentId: integer("parent_id").references(() => messages.id, { onDelete: 'cascade' }),
-  replyCount: integer("reply_count").default(0).notNull(),
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -63,7 +62,6 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     fields: [messages.userId],
     references: [users.id],
   }),
-  // Define thread relationships
   parent: one(messages, {
     fields: [messages.parentId],
     references: [messages.id],
@@ -86,10 +84,6 @@ export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
     references: [users.id],
   }),
 }));
-
-// Zod schemas
-export const insertUserSchema = createInsertSchema(users);
-export const selectUserSchema = createSelectSchema(users);
 
 // Types
 export type User = typeof users.$inferSelect;

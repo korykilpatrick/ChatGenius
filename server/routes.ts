@@ -51,37 +51,66 @@ export function registerRoutes(app: Express): Server {
     const channelId = parseInt(req.params.channelId);
 
     try {
-      const result = await db.query.messages.findMany({
-        where: and(
-          eq(messages.channelId, channelId),
-          isNull(messages.parentId)
-        ),
-        orderBy: desc(messages.createdAt),
-        with: {
+      // First get all parent messages
+      const parentMessages = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          userId: messages.userId,
+          channelId: messages.channelId,
+          reactions: messages.reactions,
+          files: messages.files,
+          createdAt: messages.createdAt,
+          updatedAt: messages.updatedAt,
           user: {
-            columns: {
-              id: true,
-              username: true,
-              avatar: true
-            }
-          },
-          replies: {
-            limit: 3,
-            orderBy: desc(messages.createdAt),
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  username: true,
-                  avatar: true
-                }
-              }
-            }
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar
           }
-        }
-      });
+        })
+        .from(messages)
+        .leftJoin(users, eq(messages.userId, users.id))
+        .where(
+          and(
+            eq(messages.channelId, channelId),
+            isNull(messages.parentId)
+          )
+        )
+        .orderBy(desc(messages.createdAt));
 
-      res.json(result);
+      // For each parent message, get up to 3 latest replies
+      const messagesWithReplies = await Promise.all(
+        parentMessages.map(async (parentMsg) => {
+          const replies = await db
+            .select({
+              id: messages.id,
+              content: messages.content,
+              userId: messages.userId,
+              channelId: messages.channelId,
+              reactions: messages.reactions,
+              files: messages.files,
+              createdAt: messages.createdAt,
+              updatedAt: messages.updatedAt,
+              user: {
+                id: users.id,
+                username: users.username,
+                avatar: users.avatar
+              }
+            })
+            .from(messages)
+            .leftJoin(users, eq(messages.userId, users.id))
+            .where(eq(messages.parentId, parentMsg.id))
+            .orderBy(desc(messages.createdAt))
+            .limit(3);
+
+          return {
+            ...parentMsg,
+            replies: replies.reverse()
+          };
+        })
+      );
+
+      res.json(messagesWithReplies);
     } catch (error) {
       console.error("Error fetching messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
@@ -93,19 +122,26 @@ export function registerRoutes(app: Express): Server {
     const messageId = parseInt(req.params.messageId);
 
     try {
-      const replies = await db.query.messages.findMany({
-        where: eq(messages.parentId, messageId),
-        orderBy: asc(messages.createdAt),
-        with: {
+      const replies = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          userId: messages.userId,
+          channelId: messages.channelId,
+          reactions: messages.reactions,
+          files: messages.files,
+          createdAt: messages.createdAt,
+          updatedAt: messages.updatedAt,
           user: {
-            columns: {
-              id: true,
-              username: true,
-              avatar: true
-            }
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar
           }
-        }
-      });
+        })
+        .from(messages)
+        .leftJoin(users, eq(messages.userId, users.id))
+        .where(eq(messages.parentId, messageId))
+        .orderBy(asc(messages.createdAt));
 
       res.json(replies);
     } catch (error) {
@@ -125,7 +161,6 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // Create the message
       const [newMessage] = await db
         .insert(messages)
         .values({
@@ -136,19 +171,27 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
-      // Fetch the complete message with user data
-      const [messageWithUser] = await db.query.messages.findMany({
-        where: eq(messages.id, newMessage.id),
-        with: {
+      const [messageWithUser] = await db
+        .select({
+          id: messages.id,
+          content: messages.content,
+          userId: messages.userId,
+          channelId: messages.channelId,
+          parentId: messages.parentId,
+          reactions: messages.reactions,
+          files: messages.files,
+          createdAt: messages.createdAt,
+          updatedAt: messages.updatedAt,
           user: {
-            columns: {
-              id: true,
-              username: true,
-              avatar: true
-            }
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar
           }
-        }
-      });
+        })
+        .from(messages)
+        .leftJoin(users, eq(messages.userId, users.id))
+        .where(eq(messages.id, newMessage.id))
+        .limit(1);
 
       res.json(messageWithUser);
     } catch (error) {
