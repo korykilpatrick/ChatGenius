@@ -1,41 +1,64 @@
-
-import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
-
-type UserProfile = {
-  id: number;
-  username: string;
-  avatar?: string;
-  title?: string;
-  bio?: string;
-};
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function UserProfilePage() {
   const [, params] = useRoute("/profile/:id");
-  const [user, setUser] = useState<UserProfile | null>(null);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await fetch(`/api/users/${params?.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch user:', error);
-      }
-    };
+  const { data: user, isLoading, error } = useQuery({
+    queryKey: [`/api/users/${params?.id}`],
+    enabled: !!params?.id,
+  });
 
-    if (params?.id) {
-      fetchUser();
-    }
-  }, [params?.id]);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
+          <Link href="/" className="text-xl font-bold hover:opacity-80">
+            ChatGenius
+          </Link>
+        </header>
+        <div className="flex-1 p-4">
+          <Card className="max-w-2xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl">User Profile</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center space-y-4">
+                <Skeleton className="h-24 w-24 rounded-full" />
+                <Skeleton className="h-8 w-48" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
-  if (!user) return null;
+  if (error || !user) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
+          <Link href="/" className="text-xl font-bold hover:opacity-80">
+            ChatGenius
+          </Link>
+        </header>
+        <div className="flex-1 p-4">
+          <Card className="max-w-2xl mx-auto">
+            <CardContent className="pt-6">
+              <p className="text-center text-muted-foreground">
+                User not found or error loading profile
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
