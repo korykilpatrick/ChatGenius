@@ -8,7 +8,11 @@ import MessageInput from "@/components/chat/MessageInput";
 import { format } from "date-fns";
 import type { Message } from "@db/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 type MessageListProps = {
   channelId: number;
@@ -17,7 +21,10 @@ type MessageListProps = {
 
 const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
-export default function MessageList({ channelId, onThreadSelect }: MessageListProps) {
+export default function MessageList({
+  channelId,
+  onThreadSelect,
+}: MessageListProps) {
   const queryClient = useQueryClient();
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: [`/api/channels/${channelId}/messages`],
@@ -25,28 +32,38 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
 
-  const handleWebSocketMessage = useCallback((message: any) => {
-    if (message.type === 'message_created' && message.payload.channelId === channelId) {
-      queryClient.setQueryData([`/api/channels/${channelId}/messages`], (oldData: Message[] = []) => {
-        const { message: newMessage, user } = message.payload;
-        return [...oldData, { ...newMessage, user }];
-      });
-    }
-  }, [channelId, queryClient]);
+  const handleWebSocketMessage = useCallback(
+    (message: any) => {
+      console.log(message);
+      if (
+        message.type === "message_created" &&
+        message.payload.message.channelId === channelId
+      ) {
+        queryClient.setQueryData(
+          [`/api/channels/${channelId}/messages`],
+          (oldData: Message[] = []) => {
+            const { message: newMessage, user } = message.payload;
+            return [...oldData, { ...newMessage, user }];
+          },
+        );
+      }
+    },
+    [channelId, queryClient],
+  );
 
   useEffect(() => {
     if (!channelId || !isConnected) return;
-    
+
     const unsub = subscribe(handleWebSocketMessage);
     return () => {
-      if (typeof unsub === 'function') {
+      if (typeof unsub === "function") {
         unsub();
       }
     };
   }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
 
   const handleReaction = (messageId: number, reaction: string) => {
-    sendMessage('message_reaction', { messageId, reaction });
+    sendMessage("message_reaction", { messageId, reaction });
   };
 
   return (
@@ -64,27 +81,34 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{message.user.username}</span>
+                    <span className="font-semibold">
+                      {message.user.username}
+                    </span>
                     <span className="text-xs text-muted-foreground">
-                      {format(new Date(message.createdAt), 'p')}
+                      {format(new Date(message.createdAt), "p")}
                     </span>
                   </div>
                   <p className="mt-1">{message.content}</p>
-                  {message.reactions && Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                      {Object.entries(message.reactions as Record<string, number[]>).map(([reaction, userIds]) => (
-                        <Button
-                          key={reaction}
-                          variant="secondary"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={() => handleReaction(message.id, reaction)}
-                        >
-                          {reaction} {userIds.length}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
+                  {message.reactions &&
+                    Object.entries(
+                      message.reactions as Record<string, number[]>,
+                    ).length > 0 && (
+                      <div className="flex gap-1 mt-2">
+                        {Object.entries(
+                          message.reactions as Record<string, number[]>,
+                        ).map(([reaction, userIds]) => (
+                          <Button
+                            key={reaction}
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => handleReaction(message.id, reaction)}
+                          >
+                            {reaction} {userIds.length}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
                   <Popover>

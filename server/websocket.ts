@@ -44,10 +44,13 @@ export function setupWebSocket(server: Server) {
 
         if (message.type === "new_message") {
           const { channelId, content, userId, parentId } = message.payload;
+          console.log(channelId, content, userId, parentId);
+          console.log("about to");
           if (!channelId || !content || !userId) return;
-
+          console.log("TRY");
           try {
-            const [newMessage] = (await db
+            console.log("okkk", message);
+            const [newMessage] = await db
               .insert(messages)
               .values({
                 channelId,
@@ -55,9 +58,8 @@ export function setupWebSocket(server: Server) {
                 userId,
                 parentId: parentId || null,
               })
-              .returning()) as QueryResult<messages[]>;
-            newMessage = newMessage.rows[0];
-
+              .returning(); // returns an array of inserted rows
+            console.log("newwww", newMessage);
             if (newMessage) {
               const [messageData] = await db
                 .select({
@@ -77,7 +79,7 @@ export function setupWebSocket(server: Server) {
                 const response = {
                   type: "message_created",
                   payload: {
-                    ...messageData.message,
+                    message: messageData.message,
                     user: messageData.user,
                   },
                 };
