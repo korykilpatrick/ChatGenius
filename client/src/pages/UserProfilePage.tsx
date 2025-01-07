@@ -5,10 +5,18 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 
+type UserProfile = {
+  id: number;
+  username: string;
+  avatar?: string | null;
+  title?: string | null;
+  bio?: string | null;
+};
+
 export default function UserProfilePage() {
   const [, params] = useRoute("/profile/:id");
 
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isLoading, error } = useQuery<UserProfile>({
     queryKey: [`/api/users/${params?.id}`],
     enabled: !!params?.id,
   });
@@ -76,7 +84,7 @@ export default function UserProfilePage() {
           <CardContent>
             <div className="mb-6 flex flex-col items-center">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={user.avatar} />
+                <AvatarImage src={user.avatar || undefined} />
                 <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
               </Avatar>
               <h2 className="mt-4 text-2xl font-bold">{user.username}</h2>

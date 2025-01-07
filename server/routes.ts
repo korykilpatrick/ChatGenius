@@ -20,7 +20,8 @@ export function registerRoutes(app: Express): Server {
   app.use("/api", (req, res, next) => {
     if (req.path.startsWith("/api/login") || 
         req.path.startsWith("/api/register") || 
-        req.path.startsWith("/api/user") && req.method === "GET") {
+        req.path.startsWith("/api/user") && req.method === "GET" ||
+        req.path.startsWith("/api/users/") && req.method === "GET") {
       return next();
     }
 
@@ -28,6 +29,33 @@ export function registerRoutes(app: Express): Server {
       return res.status(401).json({ message: "Not authenticated" });
     }
     next();
+  });
+
+  // User Profile
+  app.get("/api/users/:id", async (req, res) => {
+    const userId = parseInt(req.params.id);
+
+    try {
+      const [user] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
   });
 
   // Channels
