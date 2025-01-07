@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/popover";
 
 type MessageListProps = {
-  channelId: number;
+  channelId?: number;
+  userId?: number;
   onThreadSelect: (message: Message) => void;
 };
 
@@ -23,46 +24,44 @@ const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "�
 
 export default function MessageList({
   channelId,
+  userId,
   onThreadSelect,
 }: MessageListProps) {
-  console.log("Message list component is rendering");
   const queryClient = useQueryClient();
+
+  // For DMs, first get or create the conversation
+  const { data: conversation } = useQuery({
+    queryKey: [`/api/dm/conversations`],
+    enabled: !!userId,
+  });
+
+  // Then fetch messages for either channel or DM conversation
   const { data: messages = [] } = useQuery<Message[]>({
-    queryKey: [`/api/channels/${channelId}/messages`],
-    queryFn: async () => {
-      const res = await fetch(`/api/channels/${channelId}/messages`);
-      const allMessages = await res.json();
-      return allMessages.filter(msg => !msg.parentId);
-    },
+    queryKey: channelId 
+      ? [`/api/channels/${channelId}/messages`]
+      : [`/api/dm/conversations/${userId}/messages`],
+    enabled: !!channelId || !!userId,
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
-      console.log("[MessageList] Processing WebSocket message:", message);
-
       if (message.type === "message_created") {
-        console.log(
-          "[MessageList] Received message_created event:",
-          message.payload,
-        );
-        if (message.payload.message.channelId === channelId) {
-          console.log(
-            "[MessageList] Updating messages for channel:",
-            channelId,
-          );
-          // Only add to main feed if it's not a thread reply
+        if (
+          (channelId && message.payload.message.channelId === channelId) ||
+          (userId && message.payload.message.userId === userId)
+        ) {
           if (!message.payload.message.parentId) {
             queryClient.setQueryData(
-              [`/api/channels/${channelId}/messages`],
+              channelId 
+                ? [`/api/channels/${channelId}/messages`]
+                : [`/api/dm/conversations/${userId}/messages`],
               (oldData: Message[] = []) => {
                 const newMessage = {
                   ...message.payload.message,
                   user: message.payload.user,
                 };
-                console.log("[MessageList] Adding new message:", newMessage);
-                // Only add if message doesn't exist already
                 const exists = oldData.some((msg) => msg.id === newMessage.id);
                 return exists ? oldData : [newMessage, ...oldData];
               },
@@ -70,13 +69,13 @@ export default function MessageList({
           }
         }
       } else if (message.type === "message_reaction_updated") {
-        console.log(
-          "[MessageList] Updating message reaction:",
-          message.payload,
-        );
+        //This section needs more work to handle both channel and DM
+        console.log("[MessageList] Updating message reaction:", message.payload);
         const { messageId, reactions } = message.payload;
         queryClient.setQueryData(
-          [`/api/channels/${channelId}/messages`],
+          channelId
+            ? [`/api/channels/${channelId}/messages`]
+            : [`/api/dm/conversations/${userId}/messages`],
           (oldData: Message[] = []) => {
             return oldData.map((msg) =>
               msg.id === messageId ? { ...msg, reactions } : msg,
@@ -85,28 +84,15 @@ export default function MessageList({
         );
       }
     },
-    [channelId, queryClient],
+    [channelId, userId, queryClient],
   );
 
   useEffect(() => {
-    console.log("Channel ID:", channelId, "Connected?", isConnected);
+    if (!channelId && !userId) return;
 
-    if (!channelId) return;
-
-    console.log(
-      "[MessageList] Setting up WebSocket subscription for channel:",
-      channelId,
-    );
     const unsubscribe = subscribe(handleWebSocketMessage);
-
-    return () => {
-      console.log(
-        "[MessageList] Cleaning up WebSocket subscription for channel:",
-        channelId,
-      );
-      unsubscribe();
-    };
-  }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
+    return () => unsubscribe();
+  }, [channelId, userId, isConnected, subscribe, handleWebSocketMessage]);
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string, userId?: number) => {
@@ -122,10 +108,7 @@ export default function MessageList({
           {messages.map((message) => (
             <div key={message.id} className="group">
               <div className="flex items-start gap-3">
-                <Avatar 
-                  className="cursor-pointer hover:opacity-80"
-                  onClick={() => window.location.href = `/profile/${message.user.id}`}
-                >
+                <Avatar>
                   <AvatarImage src={message.user.avatar || undefined} />
                   <AvatarFallback>
                     {message.user.username[0].toUpperCase()}
@@ -213,7 +196,7 @@ export default function MessageList({
           ))}
         </div>
       </ScrollArea>
-      <MessageInput channelId={channelId} />
+      <MessageInput channelId={channelId} userId={userId} />
     </div>
   );
 }

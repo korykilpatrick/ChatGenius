@@ -19,9 +19,9 @@ export default function ChatPage() {
   const { isConnected } = useWebSocket();
   const [location] = useLocation();
 
-  // Extract DM conversation ID from URL if present
+  // Extract user ID from DM URL if present
   const dmMatch = location.match(/^\/dm\/(\d+)/);
-  const selectedDM = dmMatch ? parseInt(dmMatch[1], 10) : null;
+  const selectedUserId = dmMatch ? parseInt(dmMatch[1], 10) : null;
 
   return (
     <div className="h-screen flex flex-col">
@@ -45,7 +45,7 @@ export default function ChatPage() {
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
           <div className="flex flex-col h-full">
             <ChannelList 
-              selectedChannel={selectedDM ? null : selectedChannel}
+              selectedChannel={selectedUserId ? null : selectedChannel}
               onSelectChannel={(id) => {
                 setSelectedChannel(id);
                 setSelectedThread(null);
@@ -59,15 +59,15 @@ export default function ChatPage() {
         <ResizableHandle />
 
         <ResizablePanel defaultSize={55} minSize={30}>
-          {selectedChannel && !selectedDM && (
+          {selectedChannel && !selectedUserId && (
             <MessageList
               channelId={selectedChannel}
               onThreadSelect={setSelectedThread}
             />
           )}
-          {selectedDM && (
+          {selectedUserId && (
             <MessageList
-              conversationId={selectedDM}
+              userId={selectedUserId}
               onThreadSelect={setSelectedThread}
             />
           )}

@@ -15,7 +15,7 @@ interface User {
 interface Conversation {
   id: number;
   createdAt: string;
-  participantIds?: number[]; // Added participantIds
+  lastMessageAt: string;
 }
 
 export function DirectMessagesList() {
@@ -34,18 +34,6 @@ export function DirectMessagesList() {
 
   const startConversation = async (participantId: number) => {
     try {
-      // Check if conversation already exists
-      const existingConversation = conversations?.find(
-        ({ conversation }) => 
-          conversation.participantIds?.includes(participantId) && 
-          conversation.participantIds?.includes(currentUser?.id || 0)
-      );
-
-      if (existingConversation) {
-        setLocation(`/dm/${existingConversation.conversation.id}`);
-        return;
-      }
-
       const response = await fetch("/api/dm/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -57,9 +45,7 @@ export function DirectMessagesList() {
         throw new Error("Failed to create conversation");
       }
 
-      const conversation = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/dm/conversations"] });
-      setLocation(`/dm/${conversation.id}`);
     } catch (error) {
       console.error("Error creating DM:", error);
       toast({
