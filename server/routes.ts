@@ -158,10 +158,37 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/dm/conversations/:conversationId/messages", async (req, res) => {
     const userId = req.user!.id;
-    const conversationId = parseInt(req.params.conversationId);
+    const otherUserId = parseInt(req.params.conversationId);
 
     try {
-      // Verify user is part of the conversation
+      // First check if conversation exists, if not create it
+      let [conversation] = await db
+        .select()
+        .from(directMessageConversations)
+        .innerJoin(
+          directMessageParticipants,
+          eq(directMessageParticipants.conversationId, directMessageConversations.id)
+        )
+        .where(
+          and(
+            eq(directMessageParticipants.userId, userId),
+            eq(directMessageParticipants.conversationId, req.params.conversationId)
+          )
+        );
+
+      if (!conversation) {
+        [conversation] = await db
+          .insert(directMessageConversations)
+          .values({})
+          .returning();
+
+        await db.insert(directMessageParticipants).values([
+          { conversationId: conversation.id, userId },
+          { conversationId: conversation.id, userId: otherUserId }
+        ]);
+      }
+
+      // Now verify user is part of the conversation
       const [participant] = await db
         .select()
         .from(directMessageParticipants)
