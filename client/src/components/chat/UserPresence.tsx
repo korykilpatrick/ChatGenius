@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,18 +23,21 @@ export default function UserPresence() {
 
   return (
     <div className="relative">
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger className="outline-none">
+      <DropdownMenuPrimitive.Root>
+        <DropdownMenuPrimitive.Trigger asChild>
+          <button className="outline-none">
             <Avatar className="h-8 w-8 hover:bg-accent cursor-pointer">
               <AvatarImage src={avatarUrl} />
               <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
             </Avatar>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent 
-          align="end" 
-          className="w-56 p-1 bg-white border shadow-md rounded-md"
-          sideOffset={5}
-        >
+          </button>
+        </DropdownMenuPrimitive.Trigger>
+        <DropdownMenuPrimitive.Portal>
+          <DropdownMenuPrimitive.Content
+            align="end"
+            className="w-56 p-1 bg-white border shadow-md rounded-md mt-2"
+            sideOffset={5}
+          >
           <DropdownMenuItem 
             onClick={() => setLocation("/profile")} 
             className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md"
@@ -49,8 +53,9 @@ export default function UserPresence() {
             <LogOut className="mr-2 h-4 w-4" />
             <span>Logout</span>
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuPrimitive.Content>
+        </DropdownMenuPrimitive.Portal>
+      </DropdownMenuPrimitive.Root>
     </div>
   );
 }
