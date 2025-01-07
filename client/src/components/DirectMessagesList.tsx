@@ -43,33 +43,34 @@ export function DirectMessagesList() {
   };
 
   return (
-    <div>
-      <div className="px-2 mb-2">
-        <h2 className="text-sm font-semibold">Direct Messages</h2>
+    <div className="flex-1 overflow-hidden">
+      <div className="px-3 py-2">
+        <h2 className="mb-2 text-lg font-semibold text-foreground">Direct Messages</h2>
+        <ScrollArea className="h-[calc(100vh-15rem)]">
+          <div className="space-y-[2px]">
+            {users
+              ?.filter((user) => user.id !== currentUser?.id)
+              .map((user) => (
+                <Button
+                  key={user.id}
+                  variant="ghost"
+                  className="w-full justify-start px-2 py-1.5 h-8 hover:bg-accent/50"
+                  onClick={() => startConversation(user.id)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar className="h-5 w-5 shrink-0">
+                      <AvatarImage src={user.avatar || undefined} />
+                      <AvatarFallback>
+                        {user.username[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm truncate text-foreground">{user.username}</span>
+                  </div>
+                </Button>
+              ))}
+          </div>
+        </ScrollArea>
       </div>
-
-      <ScrollArea className="h-[200px]">
-        <div className="space-y-0.5">
-          {users
-            ?.filter((user) => user.id !== currentUser?.id)
-            .map((user) => (
-              <Button
-                key={user.id}
-                variant="ghost"
-                className="w-full justify-start px-2 h-7"
-                onClick={() => startConversation(user.id)}
-              >
-                <Avatar className="h-5 w-5 mr-2">
-                  <AvatarImage src={user.avatar || undefined} />
-                  <AvatarFallback>
-                    {user.username[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm truncate">{user.username}</span>
-              </Button>
-            ))}
-        </div>
-      </ScrollArea>
     </div>
   );
 }

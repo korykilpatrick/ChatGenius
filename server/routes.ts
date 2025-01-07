@@ -31,6 +31,25 @@ export function registerRoutes(app: Express): Server {
     next();
   });
 
+  // Add users endpoint before the Direct Messages section
+  app.get("/api/users", async (req, res) => {
+    try {
+      const usersList = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        })
+        .from(users)
+        .orderBy(asc(users.username));
+
+      res.json(usersList);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
   // User Profile
   app.get("/api/users/:id", async (req, res) => {
     const userId = parseInt(req.params.id);
