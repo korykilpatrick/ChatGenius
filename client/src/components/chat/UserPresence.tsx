@@ -20,26 +20,38 @@ export default function UserPresence() {
   const avatarUrl = user.avatar || undefined;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-full outline-none hover:opacity-80 focus:ring-2 focus:ring-slate-400 focus:ring-offset-2">
-          <Avatar>
-            <AvatarImage src={avatarUrl} />
-            <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
-          </Avatar>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onClick={() => setLocation("/profile")} className="cursor-pointer">
-          <User className="mr-2 h-4 w-4" />
-          <span>View Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Logout</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="relative">
+      <DropdownMenu>
+        <DropdownMenuTrigger className="focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 rounded-full">
+          <div className="flex h-8 w-8 items-center justify-center hover:opacity-80">
+            <Avatar>
+              <AvatarImage src={avatarUrl} />
+              <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </div>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent 
+          align="end" 
+          className="w-56 p-1"
+          sideOffset={5}
+        >
+          <DropdownMenuItem 
+            onClick={() => setLocation("/profile")} 
+            className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md"
+          >
+            <User className="mr-2 h-4 w-4" />
+            <span>View Profile</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className="my-1" />
+          <DropdownMenuItem 
+            onClick={() => logout()} 
+            className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md text-red-600 hover:text-red-700"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Logout</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
