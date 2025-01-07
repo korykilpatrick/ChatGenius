@@ -27,7 +27,9 @@ export default function MessageList({ channelId, onThreadSelect }: MessageListPr
 
   const handleWebSocketMessage = useCallback((message: any) => {
     if (message.type === 'message_created' && message.payload.channelId === channelId) {
-      queryClient.invalidateQueries([`/api/channels/${channelId}/messages`]);
+      queryClient.setQueryData([`/api/channels/${channelId}/messages`], (oldData: Message[] = []) => {
+        return [...oldData, message.payload];
+      });
     }
   }, [channelId, queryClient]);
 
