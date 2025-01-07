@@ -23,19 +23,13 @@ export default function UserPresence() {
   return (
     <div className="relative">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="outline-none">
-            <Avatar className="h-8 w-8 hover:bg-accent cursor-pointer">
-              <AvatarImage src={avatarUrl} />
-              <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
-            </Avatar>
-          </button>
+        <DropdownMenuTrigger>
+          <Avatar className="h-8 w-8 hover:bg-accent cursor-pointer">
+            <AvatarImage src={avatarUrl} />
+            <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
+          </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          className="w-56"
-          sideOffset={5}
-        >
+        <DropdownMenuContent>
           <DropdownMenuItem 
             onClick={() => setLocation("/profile")} 
             className="flex items-center cursor-pointer px-2 py-2 text-sm hover:bg-slate-100 rounded-md"
