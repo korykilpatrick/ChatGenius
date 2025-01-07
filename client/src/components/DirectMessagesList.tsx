@@ -73,7 +73,6 @@ export function DirectMessagesList() {
                 <Button
                   variant="ghost"
                   className="w-full justify-start px-2 py-1.5 h-8 hover:bg-accent/50"
-                  onClick={() => startConversation(user.id)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <Avatar className="h-5 w-5 shrink-0">

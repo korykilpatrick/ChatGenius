@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import ChannelList from "@/components/chat/ChannelList";
@@ -11,6 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DirectMessagesList } from "@/components/DirectMessagesList";
 import { Separator } from "@/components/ui/separator";
 import type { Message } from "@db/schema";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<number | null>(null);
@@ -18,10 +20,44 @@ export default function ChatPage() {
   const { user } = useUser();
   const { isConnected } = useWebSocket();
   const [location] = useLocation();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Extract user ID from DM URL if present
   const dmMatch = location.match(/^\/dm\/(\d+)/);
   const selectedUserId = dmMatch ? parseInt(dmMatch[1], 10) : null;
+
+  // Initialize conversation if we're in a DM
+  useEffect(() => {
+    if (!selectedUserId) return;
+
+    const initializeConversation = async () => {
+      try {
+        const response = await fetch("/api/dm/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participantId: selectedUserId }),
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to create conversation");
+        }
+
+        // Invalidate conversations cache to ensure we have the latest data
+        queryClient.invalidateQueries({ queryKey: ["/api/dm/conversations"] });
+      } catch (error) {
+        console.error("Error initializing DM conversation:", error);
+        toast({
+          title: "Error",
+          description: "Failed to initialize conversation",
+          variant: "destructive",
+        });
+      }
+    };
+
+    initializeConversation();
+  }, [selectedUserId, queryClient, toast]);
 
   return (
     <div className="h-screen flex flex-col">
