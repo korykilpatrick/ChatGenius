@@ -32,7 +32,7 @@ export function useWebSocket() {
       globalWs = new WebSocket(wsUrl);
 
       globalWs.onopen = () => {
-        console.log("WebSocket connected successfully");
+        console.log("[WebSocket] Connected successfully");
         globalConnecting = false;
         connectedCallbacks.forEach((cb) => cb());
         globalWs?.send(
@@ -44,7 +44,7 @@ export function useWebSocket() {
       };
 
       globalWs.onclose = (event) => {
-        console.log("WebSocket disconnected:", event.code, event.reason);
+        console.log("[WebSocket] Disconnected:", event.code, event.reason);
         globalWs = null;
         globalConnecting = false;
         connectedCallbacks.forEach((cb) => cb());
@@ -60,14 +60,26 @@ export function useWebSocket() {
       globalWs.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as WebSocketMessage;
-          console.log("Received message:", message);
-          messageCallbacks.forEach((cb) => cb(message));
+          console.log("[WebSocket] Received message:", message);
+
+          // Ensure callbacks are called with the message
+          messageCallbacks.forEach((cb) => {
+            try {
+              cb(message);
+            } catch (callbackError) {
+              console.error("[WebSocket] Callback error:", callbackError);
+            }
+          });
         } catch (error) {
-          console.error("Failed to parse message:", error);
+          console.error("[WebSocket] Failed to parse message:", error);
         }
       };
+
+      globalWs.onerror = (error) => {
+        console.error("[WebSocket] Error:", error);
+      };
     } catch (error) {
-      console.error("Failed to create WebSocket connection:", error);
+      console.error("[WebSocket] Failed to create connection:", error);
       globalConnecting = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -104,9 +116,11 @@ export function useWebSocket() {
       }
 
       try {
-        globalWs.send(JSON.stringify({ type, payload }));
+        const message = { type, payload };
+        console.log("[WebSocket] Sending message:", message);
+        globalWs.send(JSON.stringify(message));
       } catch (error) {
-        console.error("Failed to send message:", error);
+        console.error("[WebSocket] Failed to send message:", error);
         toast({
           title: "Error",
           description: "Failed to send message",
@@ -118,8 +132,10 @@ export function useWebSocket() {
   );
 
   const subscribe = useCallback((callback: (message: WebSocketMessage) => void) => {
+    console.log("[WebSocket] Adding message callback");
     messageCallbacks.add(callback);
     return () => {
+      console.log("[WebSocket] Removing message callback");
       messageCallbacks.delete(callback);
     };
   }, []);

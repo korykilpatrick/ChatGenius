@@ -34,23 +34,26 @@ export default function MessageList({
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
-      console.log("Received websocket message:", message);
-      if (
-        message.type === "message_created" &&
-        message.payload.message.channelId === channelId
-      ) {
-        console.log("Updating messages with:", message.payload);
-        queryClient.setQueryData(
-          [`/api/channels/${channelId}/messages`],
-          (oldData: Message[] = []) => {
-            const newMessage = {
-              ...message.payload.message,
-              user: message.payload.user,
-            };
-            return [newMessage, ...oldData];
-          },
-        );
+      console.log("[MessageList] Processing WebSocket message:", message);
+
+      if (message.type === "message_created") {
+        console.log("[MessageList] Received message_created event:", message.payload);
+        if (message.payload.message.channelId === channelId) {
+          console.log("[MessageList] Updating messages for channel:", channelId);
+          queryClient.setQueryData(
+            [`/api/channels/${channelId}/messages`],
+            (oldData: Message[] = []) => {
+              const newMessage = {
+                ...message.payload.message,
+                user: message.payload.user,
+              };
+              console.log("[MessageList] Adding new message:", newMessage);
+              return [newMessage, ...oldData];
+            },
+          );
+        }
       } else if (message.type === "message_reaction_updated") {
+        console.log("[MessageList] Updating message reaction:", message.payload);
         const { messageId, reactions } = message.payload;
         queryClient.setQueryData(
           [`/api/channels/${channelId}/messages`],
@@ -68,11 +71,11 @@ export default function MessageList({
   useEffect(() => {
     if (!channelId || !isConnected) return;
 
-    console.log("Setting up WebSocket subscription for channel:", channelId);
+    console.log("[MessageList] Setting up WebSocket subscription for channel:", channelId);
     const unsubscribe = subscribe(handleWebSocketMessage);
 
     return () => {
-      console.log("Cleaning up WebSocket subscription for channel:", channelId);
+      console.log("[MessageList] Cleaning up WebSocket subscription for channel:", channelId);
       unsubscribe();
     };
   }, [channelId, isConnected, subscribe, handleWebSocketMessage]);
@@ -108,8 +111,7 @@ export default function MessageList({
                   </div>
                   <p className="mt-1">{message.content}</p>
                   {message.reactions &&
-                    Object.entries(message.reactions as Record<string, number[]>)
-                      .length > 0 && (
+                    Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
                       <div className="flex gap-1 mt-2">
                         {Object.entries(
                           message.reactions as Record<string, number[]>,
