@@ -42,7 +42,47 @@ export function setupWebSocket(server: Server) {
         const message: WebSocketMessage = JSON.parse(data.toString());
         console.log("Received message:", message);
 
-        if (message.type === "new_message") {
+        if (message.type === "message_reaction") {
+          const { messageId, reaction } = message.payload;
+          try {
+            const [existingMessage] = await db
+              .select()
+              .from(messages)
+              .where(eq(messages.id, messageId))
+              .limit(1);
+
+            if (existingMessage) {
+              const reactions = existingMessage.reactions || {};
+              if (!reactions[reaction]) {
+                reactions[reaction] = [];
+              }
+              if (!reactions[reaction].includes(userId)) {
+                reactions[reaction].push(userId);
+              } else {
+                reactions[reaction] = reactions[reaction].filter(id => id !== userId);
+              }
+
+              const [updatedMessage] = await db
+                .update(messages)
+                .set({ reactions })
+                .where(eq(messages.id, messageId))
+                .returning();
+
+              const response = {
+                type: "message_reaction_updated",
+                payload: { messageId, reactions: updatedMessage.reactions }
+              };
+
+              for (const client of clients) {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(response));
+                }
+              }
+            }
+          } catch (error) {
+            console.error("Failed to update reaction:", error);
+          }
+        } else if (message.type === "new_message") {
           const { channelId, content, userId, parentId } = message.payload;
           console.log(channelId, content, userId, parentId);
           console.log("about to");
