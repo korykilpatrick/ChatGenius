@@ -1,8 +1,9 @@
-import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
-import { db } from '@db';
-import { messages, users } from '@db/schema';
-import { eq, and } from 'drizzle-orm';
+import { WebSocketServer, WebSocket } from "ws";
+import { Server } from "http";
+import { db } from "@db";
+import { messages, users } from "@db/schema";
+import { eq, and } from "drizzle-orm";
+import { QueryResult } from "drizzle-orm"; // Import QueryResult
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -20,40 +21,42 @@ export function setupWebSocket(server: Server) {
     maxPayload: 64 * 1024,
   });
 
-  server.on('upgrade', (request, socket, head) => {
-    if (request.url === '/ws') {
+  server.on("upgrade", (request, socket, head) => {
+    if (request.url === "/ws") {
       wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
+        wss.emit("connection", ws, request);
       });
     }
   });
 
   const clients = new Set<ExtendedWebSocket>();
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket) => {
     const extWs = ws as ExtendedWebSocket;
     extWs.isAlive = true;
     clients.add(extWs);
-    console.log('New WebSocket connection established');
+    console.log("New WebSocket connection established");
 
-    extWs.on('message', async (data: Buffer) => {
+    extWs.on("message", async (data: Buffer) => {
       try {
         const message: WebSocketMessage = JSON.parse(data.toString());
-        console.log('Received message:', message);
+        console.log("Received message:", message);
 
-        if (message.type === 'new_message') {
+        if (message.type === "new_message") {
           const { channelId, content, userId, parentId } = message.payload;
           if (!channelId || !content || !userId) return;
 
           try {
-            const [newMessage] = await db.insert(messages)
+            const [newMessage] = (await db
+              .insert(messages)
               .values({
                 channelId,
                 content,
                 userId,
                 parentId: parentId || null,
               })
-              .returning();
+              .returning()) as QueryResult<messages[]>;
+            newMessage = newMessage.rows[0];
 
             if (newMessage) {
               const [messageData] = await db
@@ -63,7 +66,7 @@ export function setupWebSocket(server: Server) {
                     id: users.id,
                     username: users.username,
                     avatar: users.avatar,
-                  }
+                  },
                 })
                 .from(messages)
                 .where(eq(messages.id, newMessage.id))
@@ -72,11 +75,11 @@ export function setupWebSocket(server: Server) {
 
               if (messageData) {
                 const response = {
-                  type: 'message_created',
+                  type: "message_created",
                   payload: {
                     ...messageData.message,
-                    user: messageData.user
-                  }
+                    user: messageData.user,
+                  },
                 };
 
                 // Broadcast to all clients
@@ -88,31 +91,33 @@ export function setupWebSocket(server: Server) {
               }
             }
           } catch (error) {
-            console.error('Failed to create message:', error);
-            extWs.send(JSON.stringify({
-              type: 'error',
-              payload: { message: 'Failed to create message' }
-            }));
+            console.error("Failed to create message:", error);
+            extWs.send(
+              JSON.stringify({
+                type: "error",
+                payload: { message: "Failed to create message" },
+              }),
+            );
           }
         }
       } catch (error) {
-        console.error('Failed to process message:', error);
+        console.error("Failed to process message:", error);
       }
     });
 
-    extWs.on('close', () => {
+    extWs.on("close", () => {
       clients.delete(extWs);
-      console.log('Client disconnected');
+      console.log("Client disconnected");
     });
 
-    extWs.on('error', (error) => {
-      console.error('WebSocket error:', error);
+    extWs.on("error", (error) => {
+      console.error("WebSocket error:", error);
       clients.delete(extWs);
     });
   });
 
-  wss.on('error', (error) => {
-    console.error('WebSocket server error:', error);
+  wss.on("error", (error) => {
+    console.error("WebSocket server error:", error);
   });
 
   return wss;
