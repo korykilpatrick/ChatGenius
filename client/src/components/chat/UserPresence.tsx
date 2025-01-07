@@ -1,4 +1,3 @@
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -7,8 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useUser } from "@/hooks/use-user";
-import { LogOut, User } from "lucide-react";
-import { Link } from "wouter";
+import { LogOut } from "lucide-react";
 
 export default function UserPresence() {
   const { user, logout } = useUser();
@@ -27,12 +25,6 @@ export default function UserPresence() {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild>
-          <Link href="/profile">
-            <User className="mr-2 h-4 w-4" />
-            <span>View Profile</span>
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => logout()}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Logout</span>
