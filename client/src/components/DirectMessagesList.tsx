@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
+import { Link, useLocation } from "wouter";
 
 interface User {
   id: number;
@@ -11,19 +12,40 @@ interface User {
   avatar: string | null;
 }
 
+interface Conversation {
+  id: number;
+  createdAt: string;
+  participantIds?: number[]; // Added participantIds
+}
+
 export function DirectMessagesList() {
   const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
 
   const { data: users, isError } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
-  console.log("DirectMessagesList - users:", users); // Debug log
+  const { data: conversations } = useQuery<{ conversation: Conversation }[]>({
+    queryKey: ["/api/dm/conversations"],
+  });
 
   const startConversation = async (participantId: number) => {
     try {
+      // Check if conversation already exists
+      const existingConversation = conversations?.find(
+        ({ conversation }) => 
+          conversation.participantIds?.includes(participantId) && 
+          conversation.participantIds?.includes(currentUser?.id || 0)
+      );
+
+      if (existingConversation) {
+        setLocation(`/dm/${existingConversation.conversation.id}`);
+        return;
+      }
+
       const response = await fetch("/api/dm/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,7 +59,7 @@ export function DirectMessagesList() {
 
       const conversation = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/dm/conversations"] });
-      window.location.href = `/dm/${conversation.id}`;
+      setLocation(`/dm/${conversation.id}`);
     } catch (error) {
       console.error("Error creating DM:", error);
       toast({
@@ -61,22 +83,23 @@ export function DirectMessagesList() {
           {users && users.length > 0 && users
             .filter((user) => user.id !== currentUser?.id)
             .map((user) => (
-              <Button
-                key={user.id}
-                variant="ghost"
-                className="w-full justify-start px-2 py-1.5 h-8 hover:bg-accent/50"
-                onClick={() => startConversation(user.id)}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar className="h-5 w-5 shrink-0">
-                    <AvatarImage src={user.avatar || undefined} />
-                    <AvatarFallback>
-                      {user.username[0].toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm truncate text-foreground">{user.username}</span>
-                </div>
-              </Button>
+              <Link key={user.id} href={`/dm/${user.id}`} >
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start px-2 py-1.5 h-8 hover:bg-accent/50"
+                  onClick={() => startConversation(user.id)}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar className="h-5 w-5 shrink-0">
+                      <AvatarImage src={user.avatar || undefined} />
+                      <AvatarFallback>
+                        {user.username[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm truncate text-foreground">{user.username}</span>
+                  </div>
+                </Button>
+              </Link>
             ))}
         </div>
       </ScrollArea>

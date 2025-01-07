@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import ChannelList from "@/components/chat/ChannelList";
 import MessageList from "@/components/chat/MessageList";
@@ -17,6 +17,11 @@ export default function ChatPage() {
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const { user } = useUser();
   const { isConnected } = useWebSocket();
+  const [location] = useLocation();
+
+  // Extract DM conversation ID from URL if present
+  const dmMatch = location.match(/^\/dm\/(\d+)/);
+  const selectedDM = dmMatch ? parseInt(dmMatch[1], 10) : null;
 
   return (
     <div className="h-screen flex flex-col">
@@ -40,8 +45,11 @@ export default function ChatPage() {
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
           <div className="flex flex-col h-full">
             <ChannelList 
-              selectedChannel={selectedChannel}
-              onSelectChannel={setSelectedChannel}
+              selectedChannel={selectedDM ? null : selectedChannel}
+              onSelectChannel={(id) => {
+                setSelectedChannel(id);
+                setSelectedThread(null);
+              }}
             />
             <Separator className="my-2" />
             <DirectMessagesList />
@@ -51,9 +59,15 @@ export default function ChatPage() {
         <ResizableHandle />
 
         <ResizablePanel defaultSize={55} minSize={30}>
-          {selectedChannel && (
+          {selectedChannel && !selectedDM && (
             <MessageList
               channelId={selectedChannel}
+              onThreadSelect={setSelectedThread}
+            />
+          )}
+          {selectedDM && (
+            <MessageList
+              conversationId={selectedDM}
               onThreadSelect={setSelectedThread}
             />
           )}
