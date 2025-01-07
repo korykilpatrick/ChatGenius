@@ -122,7 +122,10 @@ export default function MessageList({
           {messages.map((message) => (
             <div key={message.id} className="group">
               <div className="flex items-start gap-3">
-                <Avatar>
+                <Avatar 
+                  className="cursor-pointer hover:opacity-80"
+                  onClick={() => window.location.href = `/profile/${message.user.id}`}
+                >
                   <AvatarImage src={message.user.avatar || undefined} />
                   <AvatarFallback>
                     {message.user.username[0].toUpperCase()}
