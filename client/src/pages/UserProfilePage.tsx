@@ -1,9 +1,10 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUser } from "@/hooks/use-user";
 
 type UserProfile = {
   id: number;
@@ -15,6 +16,14 @@ type UserProfile = {
 
 export default function UserProfilePage() {
   const [, params] = useRoute("/profile/:id");
+  const [, setLocation] = useLocation();
+  const { user: currentUser } = useUser();
+
+  // If viewing your own profile, redirect to /profile
+  if (currentUser && params?.id && parseInt(params.id) === currentUser.id) {
+    setLocation("/profile");
+    return null;
+  }
 
   const { data: user, isLoading, error } = useQuery<UserProfile>({
     queryKey: [`/api/users/${params?.id}`],
