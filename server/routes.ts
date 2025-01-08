@@ -293,6 +293,8 @@ export function registerRoutes(app: Express): Server {
         .orderBy(desc(directMessages.createdAt));
 
       console.log("[DM Messages] Fetched messages:", messages.length);
+      console.log("[DM Messages] Conversation ID:", conversation.id);
+      console.log("[DM Messages] Other User ID:", otherUserId);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching DM messages:", error);
@@ -302,7 +304,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/dm/conversations/:conversationId/messages", async (req, res) => {
     const userId = req.user!.id;
-    const conversationId = parseInt(req.params.conversationId);
+    const otherUserId = parseInt(req.params.conversationId);
     const { content } = req.body;
 
     if (!content) {
@@ -310,19 +312,46 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // Verify user is part of the conversation
-      const [participant] = await db
-        .select()
+      // First get or create conversation
+      let [conversation] = await db
+        .select({
+          id: directMessageConversations.id,
+        })
         .from(directMessageParticipants)
+        .innerJoin(
+          directMessageConversations,
+          eq(directMessageConversations.id, directMessageParticipants.conversationId)
+        )
         .where(
           and(
-            eq(directMessageParticipants.conversationId, conversationId),
-            eq(directMessageParticipants.userId, userId)
+            eq(directMessageParticipants.userId, userId),
+            exists(
+              db.select()
+                .from(directMessageParticipants)
+                .where(
+                  and(
+                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                    eq(directMessageParticipants.userId, otherUserId)
+                  )
+                )
+            )
           )
         );
 
-      if (!participant) {
-        return res.status(403).json({ message: "Not authorized" });
+      if (!conversation) {
+        // Create new conversation
+        const [newConversation] = await db
+          .insert(directMessageConversations)
+          .values({})
+          .returning();
+
+        // Add both users as participants
+        await db.insert(directMessageParticipants).values([
+          { conversationId: newConversation.id, userId },
+          { conversationId: newConversation.id, userId: otherUserId },
+        ]);
+
+        conversation = newConversation;
       }
 
       // Create message
@@ -330,7 +359,7 @@ export function registerRoutes(app: Express): Server {
         .insert(directMessages)
         .values({
           content,
-          conversationId,
+          conversationId: conversation.id,
           senderId: userId,
         })
         .returning();
@@ -339,25 +368,25 @@ export function registerRoutes(app: Express): Server {
       await db
         .update(directMessageConversations)
         .set({ lastMessageAt: new Date() })
-        .where(eq(directMessageConversations.id, conversationId));
+        .where(eq(directMessageConversations.id, conversation.id));
 
       const [messageWithSender] = await db
         .select({
-          message: directMessages,
+          id: directMessages.id,
+          content: directMessages.content,
+          createdAt: directMessages.createdAt,
+          senderId: directMessages.senderId,
           sender: {
             id: users.id,
             username: users.username,
             avatar: users.avatar,
-          },
+          }
         })
         .from(directMessages)
         .innerJoin(users, eq(users.id, directMessages.senderId))
         .where(eq(directMessages.id, message.id));
 
-      res.json({
-        ...messageWithSender.message,
-        sender: messageWithSender.sender,
-      });
+      res.json(messageWithSender);
     } catch (error) {
       console.error("Error sending DM:", error);
       res.status(500).json({ message: "Failed to send message" });
