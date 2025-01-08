@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,10 +28,11 @@ export default function MessageList({
   onThreadSelect,
 }: MessageListProps) {
   const queryClient = useQueryClient();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   // For DMs, first get or create the conversation
   const { data: conversation } = useQuery({
-    queryKey: [`/api/dm/conversations`],
+    queryKey: [`/api/dm/conversations/${userId}`],
     enabled: !!userId,
   });
 
@@ -39,11 +40,21 @@ export default function MessageList({
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: channelId 
       ? [`/api/channels/${channelId}/messages`]
-      : [`/api/dm/conversations/${userId}/messages`],
-    enabled: !!channelId || !!userId,
+      : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+    enabled: !!channelId || (!!userId && !!conversation?.conversation?.id),
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollElement) {
+        scrollElement.scrollTop = scrollElement.scrollHeight;
+      }
+    }
+  }, [messages]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
@@ -56,26 +67,24 @@ export default function MessageList({
             queryClient.setQueryData(
               channelId 
                 ? [`/api/channels/${channelId}/messages`]
-                : [`/api/dm/conversations/${userId}/messages`],
+                : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
               (oldData: Message[] = []) => {
                 const newMessage = {
                   ...message.payload.message,
                   user: message.payload.user,
                 };
                 const exists = oldData.some((msg) => msg.id === newMessage.id);
-                return exists ? oldData : [newMessage, ...oldData];
+                return exists ? oldData : [...oldData, newMessage];
               },
             );
           }
         }
       } else if (message.type === "message_reaction_updated") {
-        //This section needs more work to handle both channel and DM
-        console.log("[MessageList] Updating message reaction:", message.payload);
         const { messageId, reactions } = message.payload;
         queryClient.setQueryData(
           channelId
             ? [`/api/channels/${channelId}/messages`]
-            : [`/api/dm/conversations/${userId}/messages`],
+            : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
           (oldData: Message[] = []) => {
             return oldData.map((msg) =>
               msg.id === messageId ? { ...msg, reactions } : msg,
@@ -84,7 +93,7 @@ export default function MessageList({
         );
       }
     },
-    [channelId, userId, queryClient],
+    [channelId, userId, conversation?.conversation?.id, queryClient],
   );
 
   useEffect(() => {
@@ -101,11 +110,16 @@ export default function MessageList({
     [sendMessage],
   );
 
+  // Sort messages by creation date (oldest first)
+  const sortedMessages = [...messages].sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
   return (
     <div className="h-full flex flex-col">
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message) => (
+          {sortedMessages.map((message) => (
             <div key={message.id} className="group">
               <div className="flex items-start gap-3">
                 <Avatar>
