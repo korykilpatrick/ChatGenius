@@ -3,11 +3,102 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --transition-default: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --spacing-unit: 0.25rem;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Modern Typography Scale */
+  h1 {
+    @apply scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl;
+  }
+
+  h2 {
+    @apply scroll-m-20 text-3xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply scroll-m-20 text-2xl font-semibold tracking-tight;
+  }
+
+  p {
+    @apply leading-7 [&:not(:first-child)]:mt-6;
+  }
+
+  /* Interactive Elements */
+  a {
+    @apply text-primary underline-offset-4 hover:underline transition-colors duration-200;
+  }
+
+  button {
+    @apply transition-all duration-200;
+  }
+
+  /* Smooth transitions for interactive states */
+  .transition-default {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  /* Input styling */
+  input, textarea, select {
+    @apply bg-background transition-colors duration-200;
+  }
+
+  /* Focus states */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Message bubbles and threads */
+  .message-bubble {
+    @apply rounded-lg p-3 transition-shadow duration-200 hover:shadow-md;
+  }
+
+  /* User presence indicators */
+  .presence-indicator {
+    @apply w-2.5 h-2.5 rounded-full transition-all duration-200;
+  }
+
+  /* Modal and popup base styles */
+  .modal-content {
+    @apply bg-background rounded-lg shadow-lg transition-all duration-200;
+  }
+}
+
+@layer utilities {
+  /* Custom spacing utilities */
+  .space-vertical {
+    @apply space-y-[var(--spacing-unit)];
+  }
+
+  .space-horizontal {
+    @apply space-x-[var(--spacing-unit)];
+  }
+
+  /* Hover effect utilities */
+  .hover-highlight {
+    @apply hover:bg-accent/50 transition-colors duration-200;
+  }
+
+  /* Animation utilities */
+  .animate-fade {
+    @apply transition-opacity duration-200;
+  }
+
+  .animate-scale {
+    @apply transition-transform duration-200;
   }
 }
