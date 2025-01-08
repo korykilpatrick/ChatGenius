@@ -45,6 +45,8 @@ declare module "express-session" {
       avatar?: string;
       title?: string;
       bio?: string;
+      status?: string; // Added status field
+      lastSeen?: Date; //Added lastSeen field
     } | undefined;
   }
 }
@@ -58,6 +60,8 @@ declare global {
         avatar?: string;
         title?: string;
         bio?: string;
+        status?: string; // Added status field
+        lastSeen?: Date; //Added lastSeen field
       };
       isAuthenticated(): boolean;
     }
@@ -157,12 +161,24 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // Update user status to online
+      const [updatedUser] = await db
+        .update(users)
+        .set({ 
+          status: "online",
+          lastSeen: new Date()
+        })
+        .where(eq(users.id, user.id))
+        .returning();
+
       const userData = {
-        id: user.id,
-        username: user.username,
-        avatar: user.avatar || undefined,
-        title: user.title || undefined,
-        bio: user.bio || undefined,
+        id: updatedUser.id,
+        username: updatedUser.username,
+        avatar: updatedUser.avatar || undefined,
+        title: updatedUser.title || undefined,
+        bio: updatedUser.bio || undefined,
+        status: updatedUser.status,
+        lastSeen: updatedUser.lastSeen
       };
 
       req.session.user = userData;
@@ -173,6 +189,20 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res) => {
+    const userId = req.user?.id;
+
+    // Update user status to offline if we have a user
+    if (userId) {
+      db.update(users)
+        .set({ 
+          status: "offline",
+          lastSeen: new Date()
+        })
+        .where(eq(users.id, userId))
+        .execute()
+        .catch(err => console.error("Failed to update user status:", err));
+    }
+
     // Clear user data immediately
     req.user = undefined;
 

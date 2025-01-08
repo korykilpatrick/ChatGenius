@@ -42,6 +42,8 @@ export function useUser() {
 
     const result = await response.json();
     queryClient.setQueryData(['user'], result.user);
+    // Invalidate users list to reflect status changes
+    queryClient.invalidateQueries({ queryKey: ['/api/users'] });
     return result;
   };
 
@@ -75,7 +77,7 @@ export function useUser() {
       }
 
       // Only clear once we know logout succeeded
-      queryClient.clear();
+      queryClient.clear(); 
       queryClient.setQueryData(['user'], null);
       queryClient.resetQueries();
 
