@@ -69,6 +69,7 @@ export function useUser() {
 
   const logout = async () => {
     try {
+      // First, make the logout request
       const response = await fetch('/api/logout', {
         method: 'POST',
         credentials: 'include',
@@ -78,12 +79,13 @@ export function useUser() {
         throw new Error('Logout failed');
       }
 
-      // Clear once logout is confirmed
+      // After successful logout:
+      // 1. Clear React Query cache
       queryClient.clear(); 
       queryClient.setQueryData(['user'], null);
       queryClient.resetQueries();
 
-      // Redirect to login page
+      // 2. Force navigation to login page
       setLocation('/');
 
       return true;
