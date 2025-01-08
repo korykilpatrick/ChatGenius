@@ -138,7 +138,6 @@ export default function ProfilePage() {
           ChatGenius
         </Link>
         <div className="flex items-center gap-4">
-          <ThemeToggle />
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.avatar} />
@@ -146,6 +145,7 @@ export default function ProfilePage() {
             </Avatar>
             <span className="text-sm font-medium">{user?.username}</span>
           </div>
+          <ThemeToggle />
         </div>
       </header>
 
