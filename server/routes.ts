@@ -249,25 +249,17 @@ export function registerRoutes(app: Express): Server {
         .select({
           id: directMessageConversations.id,
         })
-        .from(directMessageParticipants)
+        .from(directMessageParticipants as { alias: 'p1' })
         .innerJoin(
           directMessageConversations,
-          eq(directMessageConversations.id, directMessageParticipants.conversationId)
+          eq(directMessageConversations.id, (directMessageParticipants as { alias: 'p1' }).conversationId)
         )
-        .where(
+        .innerJoin(
+          directMessageParticipants as { alias: 'p2' },
           and(
-            eq(directMessageParticipants.userId, userId),
-            exists(
-              db
-                .select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
-                    eq(directMessageParticipants.userId, otherUserId)
-                  )
-                )
-            )
+            eq((directMessageParticipants as { alias: 'p1' }).conversationId, (directMessageParticipants as { alias: 'p2' }).conversationId),
+            eq((directMessageParticipants as { alias: 'p2' }).userId, otherUserId),
+            eq((directMessageParticipants as { alias: 'p1' }).userId, userId)
           )
         );
 
