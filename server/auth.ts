@@ -186,7 +186,8 @@ export async function setupAuth(app: Express) {
       res.clearCookie("connect.sid", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "strict"
+        sameSite: "strict",
+        path: "/"
       });
 
       res.json({ message: "Logout successful" });
