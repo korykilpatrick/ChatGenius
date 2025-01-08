@@ -239,11 +239,15 @@ export function registerRoutes(app: Express): Server {
     const userId = req.user!.id;
     const otherUserId = parseInt(req.params.conversationId);
 
+    if (isNaN(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     try {
-      // First get or create the conversation between these users
-      let [existingConversation] = await db
+      // First find existing conversation between these users
+      const [existingConversation] = await db
         .select({
-          id: directMessageConversations.id
+          id: directMessageConversations.id,
         })
         .from(directMessageConversations)
         .innerJoin(
@@ -254,7 +258,8 @@ export function registerRoutes(app: Express): Server {
           and(
             eq(directMessageParticipants.userId, userId),
             exists(
-              db.select()
+              db
+                .select()
                 .from(directMessageParticipants)
                 .where(
                   and(
@@ -266,10 +271,10 @@ export function registerRoutes(app: Express): Server {
           )
         );
 
-      let conversationId;
+      let conversationId: number;
 
       if (!existingConversation) {
-        // Create new conversation
+        // Create new conversation if it doesn't exist
         const [newConversation] = await db
           .insert(directMessageConversations)
           .values({})
@@ -304,6 +309,7 @@ export function registerRoutes(app: Express): Server {
         .where(eq(directMessages.conversationId, conversationId))
         .orderBy(desc(directMessages.createdAt));
 
+      console.log("[DM Messages] Fetched messages:", messages.length);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching DM messages:", error);

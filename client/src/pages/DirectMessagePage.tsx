@@ -39,7 +39,7 @@ export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
   const { user: currentUser } = useUser();
-  const otherUserId = params?.id;
+  const otherUserId = params?.id ? parseInt(params.id) : null;
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -48,7 +48,7 @@ export default function DirectMessagePage() {
 
   const { data: messages = [], isLoading: isLoadingMessages } = useQuery<Message[]>({
     queryKey: [`/api/dm/conversations/${otherUserId}/messages`],
-    enabled: !!otherUserId,
+    enabled: !!otherUserId && !!conversation,
   });
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -62,6 +62,7 @@ export default function DirectMessagePage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ content: message.trim() }),
+          credentials: 'include',
         }
       );
 
@@ -80,9 +81,25 @@ export default function DirectMessagePage() {
     }
   };
 
-  if (!currentUser || isLoadingConversation) return null;
+  if (!currentUser || !otherUserId) return null;
 
-  const { participant } = conversation!;
+  if (isLoadingConversation) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Loading conversation...</p>
+      </div>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Conversation not found</p>
+      </div>
+    );
+  }
+
+  const { participant } = conversation;
 
   return (
     <div className="flex flex-col h-screen">
@@ -116,10 +133,10 @@ export default function DirectMessagePage() {
               <div
                 key={msg.id}
                 className={`flex gap-2 ${
-                  msg.sender.id === currentUser!.id ? "justify-end" : ""
+                  msg.sender.id === currentUser.id ? "justify-end" : ""
                 }`}
               >
-                {msg.sender.id !== currentUser!.id && (
+                {msg.sender.id !== currentUser.id && (
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={msg.sender.avatar || undefined} />
                     <AvatarFallback>
@@ -129,7 +146,7 @@ export default function DirectMessagePage() {
                 )}
                 <div
                   className={`max-w-[70%] ${
-                    msg.sender.id === currentUser!.id
+                    msg.sender.id === currentUser.id
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
                   } rounded-lg p-3`}
