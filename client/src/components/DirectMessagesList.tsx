@@ -10,6 +10,8 @@ interface User {
   id: number;
   username: string;
   avatar: string | null;
+  status?: string;
+  lastSeen?: string;
 }
 
 interface Conversation {
@@ -35,11 +37,11 @@ export function DirectMessagesList() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
-  const { data: users, isError: isUsersError } = useQuery<User[]>({
+  const { data: users = [], isError: isUsersError } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
 
-  const { data: conversations, isError: isConversationsError } = useQuery<Conversation[]>({
+  const { data: conversations = [], isError: isConversationsError } = useQuery<Conversation[]>({
     queryKey: ["/api/dm/conversations"],
   });
 
@@ -72,29 +74,28 @@ export function DirectMessagesList() {
     return null;
   }
 
-  const sortedUsers = users
-    ?.filter(user => user.id !== currentUser?.id)
-    .sort((a, b) => {
-      // Sort users with active conversations first
-      const aHasConversation = conversations?.some(
-        conv => conv.participant.id === a.id
-      );
-      const bHasConversation = conversations?.some(
-        conv => conv.participant.id === b.id
-      );
+  // Sort users: active conversations first, then by username
+  const sortedUsers = users.sort((a, b) => {
+    // Sort users with active conversations first
+    const aHasConversation = conversations.some(
+      conv => conv.participant.id === a.id
+    );
+    const bHasConversation = conversations.some(
+      conv => conv.participant.id === b.id
+    );
 
-      if (aHasConversation && !bHasConversation) return -1;
-      if (!aHasConversation && bHasConversation) return 1;
-      return a.username.localeCompare(b.username);
-    });
+    if (aHasConversation && !bHasConversation) return -1;
+    if (!aHasConversation && bHasConversation) return 1;
+    return a.username.localeCompare(b.username);
+  });
 
   return (
     <div className="px-3 py-2">
       <h2 className="mb-2 text-lg font-semibold tracking-tight">Direct Messages</h2>
       <ScrollArea className="h-[calc(100vh-15rem)]">
         <div className="space-y-[2px]">
-          {sortedUsers?.map((user) => {
-            const activeConversation = conversations?.find(
+          {sortedUsers.map((user) => {
+            const activeConversation = conversations.find(
               conv => conv.participant.id === user.id
             );
 

@@ -35,13 +35,20 @@ export function registerRoutes(app: Express): Server {
   // Add users endpoint before the Direct Messages section
   app.get("/api/users", async (req, res) => {
     try {
+      // Get the current user's ID
+      const currentUserId = req.user?.id;
+
+      // Fetch all users except the current user
       const usersList = await db
         .select({
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          status: users.status,
+          lastSeen: users.lastSeen,
         })
         .from(users)
+        .where(currentUserId ? not(eq(users.id, currentUserId)) : undefined)
         .orderBy(asc(users.username));
 
       res.json(usersList);
@@ -253,6 +260,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to handle conversation" });
     }
   });
+
 
 
   app.post("/api/dm/conversations", async (req, res) => {
