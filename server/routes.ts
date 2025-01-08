@@ -156,45 +156,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get conversation between two users
-  app.get("/api/dm/conversations/:userId", async (req, res) => {
-    const currentUserId = req.user!.id;
-    const otherUserId = parseInt(req.params.userId);
+  app.get("/api/dm/conversations/:conversationId", async (req, res) => {
+    const userId = req.user!.id;
+    const otherUserId = parseInt(req.params.conversationId);
 
     if (isNaN(otherUserId)) {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
     try {
-      // Find existing conversation between these users
-      const conversations = await db
+      // First try to find an existing conversation between these users
+      const [existingConversation] = await db
         .select({
-          conversationId: directMessageParticipants.conversationId,
+          id: directMessageConversations.id,
         })
-        .from(directMessageParticipants)
-        .where(
+        .from(directMessageParticipants as "p1")
+        .innerJoin(
+          directMessageParticipants as "p2",
           and(
-            eq(directMessageParticipants.userId, currentUserId),
-            exists(
-              db.select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.userId, otherUserId),
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId)
-                  )
-                )
-            )
+            eq("p1.conversationId", "p2.conversationId"),
+            eq("p2.userId", otherUserId)
           )
-        );
+        )
+        .where(eq("p1.userId", userId));
 
       let conversationId;
-
-      if (conversations.length > 0) {
-        // Use existing conversation
-        conversationId = conversations[0].conversationId;
+      if (existingConversation) {
+        conversationId = existingConversation.id;
       } else {
-        // Create new conversation
+        // Create new conversation if none exists
         const [newConversation] = await db
           .insert(directMessageConversations)
           .values({})
@@ -202,14 +192,14 @@ export function registerRoutes(app: Express): Server {
 
         // Add both users as participants
         await db.insert(directMessageParticipants).values([
-          { conversationId: newConversation.id, userId: currentUserId },
+          { conversationId: newConversation.id, userId },
           { conversationId: newConversation.id, userId: otherUserId },
         ]);
 
         conversationId = newConversation.id;
       }
 
-      // Get conversation details with participant info
+      // Get conversation with participant info
       const [conversation] = await db
         .select({
           conversation: {
@@ -237,9 +227,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Get messages for a conversation
   app.get("/api/dm/conversations/:conversationId/messages", async (req, res) => {
-    const currentUserId = req.user!.id;
+    const userId = req.user!.id;
     const conversationId = parseInt(req.params.conversationId);
 
     if (isNaN(conversationId)) {
@@ -254,7 +243,7 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(directMessageParticipants.conversationId, conversationId),
-            eq(directMessageParticipants.userId, currentUserId)
+            eq(directMessageParticipants.userId, userId)
           )
         );
 
@@ -268,7 +257,6 @@ export function registerRoutes(app: Express): Server {
           content: directMessages.content,
           createdAt: directMessages.createdAt,
           senderId: directMessages.senderId,
-          conversationId: directMessages.conversationId,
           sender: {
             id: users.id,
             username: users.username,
@@ -287,9 +275,8 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Send a message in a conversation
   app.post("/api/dm/conversations/:conversationId/messages", async (req, res) => {
-    const currentUserId = req.user!.id;
+    const userId = req.user!.id;
     const conversationId = parseInt(req.params.conversationId);
     const { content } = req.body;
 
@@ -305,7 +292,7 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(directMessageParticipants.conversationId, conversationId),
-            eq(directMessageParticipants.userId, currentUserId)
+            eq(directMessageParticipants.userId, userId)
           )
         );
 
@@ -313,30 +300,26 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      // Create the message
       const [message] = await db
         .insert(directMessages)
         .values({
           content,
           conversationId,
-          senderId: currentUserId,
+          senderId: userId,
         })
         .returning();
 
-      // Update conversation's last message timestamp
       await db
         .update(directMessageConversations)
         .set({ lastMessageAt: new Date() })
         .where(eq(directMessageConversations.id, conversationId));
 
-      // Get the complete message with sender info
       const [messageWithSender] = await db
         .select({
           id: directMessages.id,
           content: directMessages.content,
           createdAt: directMessages.createdAt,
           senderId: directMessages.senderId,
-          conversationId: directMessages.conversationId,
           sender: {
             id: users.id,
             username: users.username,

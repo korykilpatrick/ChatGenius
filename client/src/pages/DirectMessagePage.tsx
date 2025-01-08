@@ -42,7 +42,7 @@ export default function DirectMessagePage() {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const { subscribe } = useWebSocket();
+  const { subscribe, sendMessage: sendWebSocketMessage, isConnected } = useWebSocket();
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -94,7 +94,10 @@ export default function DirectMessagePage() {
           queryClient.setQueryData(
             [`/api/dm/conversations/${conversation.conversation.id}/messages`],
             (oldData: Message[] = []) => {
-              const newMessage = message.payload.message;
+              const newMessage = {
+                ...message.payload.message,
+                sender: message.payload.user,
+              };
               const exists = oldData.some((msg) => msg.id === newMessage.id);
               return exists ? oldData : [...oldData, newMessage];
             }
