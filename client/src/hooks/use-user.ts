@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { InsertUser } from "@db/schema";
+import type { User } from "@db/schema";
 
 export function useUser() {
   const queryClient = useQueryClient();
@@ -12,10 +12,14 @@ export function useUser() {
           credentials: 'include'
         });
         if (!response.ok) {
-          return null;
+          if (response.status === 401) {
+            return null;
+          }
+          throw new Error(`${response.status}: ${await response.text()}`);
         }
         return response.json();
       } catch (err) {
+        console.error("Failed to fetch user:", err);
         return null;
       }
     },
@@ -23,10 +27,11 @@ export function useUser() {
     staleTime: 5000
   });
 
-  const login = async (data: InsertUser) => {
+  const login = async (data: { username: string; password: string }) => {
     const response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -40,10 +45,11 @@ export function useUser() {
     return result;
   };
 
-  const register = async (data: InsertUser) => {
+  const register = async (data: { username: string; password: string }) => {
     const response = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(data),
     });
 
@@ -60,8 +66,14 @@ export function useUser() {
   const logout = async () => {
     const response = await fetch('/api/logout', {
       method: 'POST',
+      credentials: 'include',
     });
+
     if (response.ok) {
+      // Clear all queries in the cache
+      queryClient.clear();
+      // Or use this to clear specific queries
+      // queryClient.removeQueries();
       queryClient.setQueryData(['user'], null);
     }
     return response.ok;

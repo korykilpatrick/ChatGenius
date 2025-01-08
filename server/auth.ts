@@ -174,6 +174,7 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/logout", (req, res) => {
     req.session.destroy(() => {
+      res.clearCookie("connect.sid");
       res.json({ message: "Logout successful" });
     });
   });
@@ -214,18 +215,15 @@ export async function setupAuth(app: Express) {
           bio: users.bio,
         });
 
-      if (updatedUser.avatar === null) {
-        updatedUser.avatar = undefined;
-      }
-      if (updatedUser.title === null) {
-        updatedUser.title = undefined;
-      }
-      if (updatedUser.bio === null) {
-        updatedUser.bio = undefined;
-      }
+      const cleanUser = {
+        ...updatedUser,
+        avatar: updatedUser.avatar || undefined,
+        title: updatedUser.title || undefined,
+        bio: updatedUser.bio || undefined
+      };
 
-      req.session.user = updatedUser;
-      res.json({ message: "Profile updated successfully", user: updatedUser });
+      req.session.user = cleanUser;
+      res.json({ message: "Profile updated successfully", user: cleanUser });
     } catch (error) {
       res.status(500).json({ message: "Failed to update profile" });
     }
@@ -255,12 +253,15 @@ export async function setupAuth(app: Express) {
           bio: users.bio,
         });
 
-      if (updatedUser.avatar === null) {
-        updatedUser.avatar = undefined;
-      }
+      const cleanUser = {
+        ...updatedUser,
+        avatar: updatedUser.avatar || undefined,
+        title: updatedUser.title || undefined,
+        bio: updatedUser.bio || undefined
+      };
 
-      req.session.user = updatedUser;
-      res.json({ message: "Avatar updated successfully", user: updatedUser });
+      req.session.user = cleanUser;
+      res.json({ message: "Avatar updated successfully", user: cleanUser });
     } catch (error) {
       res.status(500).json({ message: "Failed to update avatar" });
     }

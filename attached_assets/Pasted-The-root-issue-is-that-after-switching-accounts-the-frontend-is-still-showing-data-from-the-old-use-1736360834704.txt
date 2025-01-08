@@ -1,0 +1,59 @@
+The root issue is that after switching accounts, the frontend is still showing data from the old user. React Query is caching user X’s data, so when you log in as user Y, the cached results remain. That’s why user X’s DMs leak into user Y’s session, or user Y’s DM list doesn’t populate with new data.
+
+Below are the key steps to fix it:
+
+1. Properly clear server session on logout
+If you’re using Passport (or similar), make sure your logout endpoint actually destroys the session. For example:
+
+ts
+Copy code
+app.post("/api/logout", (req, res) => {
+  req.logout((err) => {
+    if (err) console.error("Logout error:", err);
+    req.session?.destroy(() => {});
+    res.clearCookie("connect.sid");
+    res.json({ success: true });
+  });
+});
+If the session cookie still points to the old session, the server may continue treating you as user X. Confirm that req.user becomes undefined on subsequent requests after you log out.
+
+2. Reset or invalidate React Query data on logout
+Even if the server session is cleared, React Query keeps old cache entries around. When user Y logs in, the old queries for user X are still in memory. You must clear or invalidate them:
+
+ts
+Copy code
+import { useQueryClient } from "@tanstack/react-query";
+
+function LogoutButton() {
+  const queryClient = useQueryClient();
+
+  const handleLogout = async () => {
+    await fetch("/api/logout", { method: "POST", credentials: "include" });
+    queryClient.clear(); 
+    // Or at least queryClient.invalidateQueries() to wipe the old data
+    // then redirect or refresh
+  };
+
+  return <button onClick={handleLogout}>Logout</button>;
+}
+This way, once you log in as user Y, fresh queries run rather than reusing user X’s data.
+
+3. Ensure req.user is updated after logging in as Y
+Once you log in with user Y, confirm the server is returning the correct user in /api/user or equivalent. If your client code sets some currentUser state from that endpoint, it should show user Y now, not user X. If it’s still showing user X, the session was never changed.
+
+4. Confirm queries rely on the current user
+In your components, you do things like:
+
+ts
+Copy code
+const { data: users = [] } = useQuery<User[]>({
+  queryKey: ["/api/users"],
+  enabled: !!currentUser,
+  queryFn: ...
+});
+If currentUser is null or stale, it never re-fetches, so you see old data. Make sure that after logging in as Y (and after clearing the cache), you set currentUser = Y, which triggers queries to fetch Y’s data.
+
+Summary
+Clear or destroy the session on the server so user X’s session truly ends.
+Clear React Query cache after logout so the new user sees fresh data.
+Make sure your client sets the new currentUser after the next login, which in turn re-fetches the correct DM data.
