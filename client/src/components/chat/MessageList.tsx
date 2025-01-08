@@ -79,6 +79,18 @@ export default function MessageList({
             }
           );
         }
+      } else if (message.type === "message_reaction_updated") {
+        const { messageId, reactions } = message.payload;
+        queryClient.setQueryData(
+          channelId
+            ? [`/api/channels/${channelId}/messages`]
+            : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+          (oldData: Message[] = []) => {
+            return oldData.map((msg) =>
+              msg.id === messageId ? { ...msg, reactions } : msg,
+            );
+          }
+        );
       }
     },
     [channelId, conversation?.conversation?.id, queryClient]
@@ -100,7 +112,7 @@ export default function MessageList({
     (messageId: number, reaction: string, userId?: number) => {
       sendMessage("message_reaction", { messageId, reaction, userId });
     },
-    [sendMessage],
+    [sendMessage]
   );
 
   return (
