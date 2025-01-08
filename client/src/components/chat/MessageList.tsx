@@ -3,16 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Smile } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import MessageInput from "@/components/chat/MessageInput";
 import { format } from "date-fns";
 import type { Message } from "@db/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 type MessageListProps = {
   channelId?: number;
@@ -27,7 +22,7 @@ export default function MessageList({
 }: MessageListProps) {
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { subscribe, sendMessage } = useWebSocket();
+  const { subscribe } = useWebSocket();
 
   // Get conversation for DMs
   const { data: conversation } = useQuery({
@@ -73,7 +68,7 @@ export default function MessageList({
           queryClient.setQueryData(queryKey, (oldData: Message[] = []) => {
             const newMessage = {
               ...message.payload.message,
-              sender: message.payload.user,
+              user: message.payload.user,
             };
             const exists = oldData.some((msg) => msg.id === newMessage.id);
             return exists ? oldData : [...oldData, newMessage];
@@ -99,15 +94,15 @@ export default function MessageList({
             <div key={message.id} className="group">
               <div className="flex items-start gap-3">
                 <Avatar>
-                  <AvatarImage src={message.sender?.avatar || undefined} />
+                  <AvatarImage src={message.user?.avatar || undefined} />
                   <AvatarFallback>
-                    {message.sender?.username[0].toUpperCase()}
+                    {message.user?.username?.[0].toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">
-                      {message.sender?.username}
+                      {message.user?.username}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(message.createdAt), "p")}
