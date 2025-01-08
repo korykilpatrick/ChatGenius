@@ -5,6 +5,7 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { channels, messages, channelMembers, users, directMessageConversations, directMessageParticipants, directMessages } from "@db/schema";
 import { eq, and, desc, asc, isNull, or, inArray, exists } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes first
@@ -165,20 +166,22 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // First try to find an existing conversation between these users
+      // Create aliases for self-join
+      const p1 = alias(directMessageParticipants, "p1");
+      const p2 = alias(directMessageParticipants, "p2");
+
+      // Find existing conversation between these users
       const [existingConversation] = await db
         .select({
           id: directMessageConversations.id,
         })
-        .from(directMessageParticipants as "p1")
-        .innerJoin(
-          directMessageParticipants as "p2",
-          and(
-            eq("p1.conversationId", "p2.conversationId"),
-            eq("p2.userId", otherUserId)
-          )
-        )
-        .where(eq("p1.userId", userId));
+        .from(p1)
+        .innerJoin(p2, and(
+          eq(p1.conversationId, p2.conversationId),
+          eq(p2.userId, otherUserId)
+        ))
+        .innerJoin(directMessageConversations, eq(directMessageConversations.id, p1.conversationId))
+        .where(eq(p1.userId, userId));
 
       let conversationId;
       if (existingConversation) {
