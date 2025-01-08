@@ -237,44 +237,13 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/dm/conversations/:conversationId/messages", async (req, res) => {
     const userId = req.user!.id;
-    const otherUserId = parseInt(req.params.conversationId);
+    const conversationId = parseInt(req.params.conversationId);
 
-    if (isNaN(otherUserId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
     }
 
     try {
-      // Get the conversation between these users
-      const [conversation] = await db
-        .select({
-          id: directMessageConversations.id,
-        })
-        .from(directMessageParticipants)
-        .innerJoin(
-          directMessageConversations,
-          eq(directMessageConversations.id, directMessageParticipants.conversationId)
-        )
-        .where(
-          and(
-            eq(directMessageParticipants.userId, userId),
-            exists(
-              db.select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
-                    eq(directMessageParticipants.userId, otherUserId)
-                  )
-                )
-            )
-          )
-        );
-
-      if (!conversation) {
-        return res.json([]);
-      }
-
-      // Fetch messages for this conversation
       const messages = await db
         .select({
           id: directMessages.id,
@@ -285,16 +254,13 @@ export function registerRoutes(app: Express): Server {
             id: users.id,
             username: users.username,
             avatar: users.avatar,
-          }
+          },
         })
         .from(directMessages)
         .innerJoin(users, eq(users.id, directMessages.senderId))
-        .where(eq(directMessages.conversationId, conversation.id))
+        .where(eq(directMessages.conversationId, conversationId))
         .orderBy(desc(directMessages.createdAt));
 
-      console.log("[DM Messages] Fetched messages:", messages.length);
-      console.log("[DM Messages] Conversation ID:", conversation.id);
-      console.log("[DM Messages] Other User ID:", otherUserId);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching DM messages:", error);
@@ -304,7 +270,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/dm/conversations/:conversationId/messages", async (req, res) => {
     const userId = req.user!.id;
-    const otherUserId = parseInt(req.params.conversationId);
+    const conversationId = parseInt(req.params.conversationId);
     const { content } = req.body;
 
     if (!content) {
@@ -312,63 +278,19 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // First get or create the conversation between these users
-      let [conversation] = await db
-        .select({
-          id: directMessageConversations.id,
-        })
-        .from(directMessageParticipants)
-        .innerJoin(
-          directMessageConversations,
-          eq(directMessageConversations.id, directMessageParticipants.conversationId)
-        )
-        .where(
-          and(
-            eq(directMessageParticipants.userId, userId),
-            exists(
-              db.select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
-                    eq(directMessageParticipants.userId, otherUserId)
-                  )
-                )
-            )
-          )
-        );
-
-      if (!conversation) {
-        // Create new conversation
-        const [newConversation] = await db
-          .insert(directMessageConversations)
-          .values({})
-          .returning();
-
-        // Add both users as participants
-        await db.insert(directMessageParticipants).values([
-          { conversationId: newConversation.id, userId },
-          { conversationId: newConversation.id, userId: otherUserId },
-        ]);
-
-        conversation = newConversation;
-      }
-
-      // Create message
       const [message] = await db
         .insert(directMessages)
         .values({
           content,
-          conversationId: conversation.id,
+          conversationId,
           senderId: userId,
         })
         .returning();
 
-      // Update conversation's lastMessageAt
       await db
         .update(directMessageConversations)
         .set({ lastMessageAt: new Date() })
-        .where(eq(directMessageConversations.id, conversation.id));
+        .where(eq(directMessageConversations.id, conversationId));
 
       const [messageWithSender] = await db
         .select({
