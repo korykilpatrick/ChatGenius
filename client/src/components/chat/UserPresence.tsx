@@ -21,8 +21,8 @@ export default function UserPresence() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="outline-none">
-        <Avatar className="h-8 w-8 hover:opacity-90">
+      <DropdownMenuTrigger asChild>
+        <Avatar className="h-8 w-8 hover:opacity-90 cursor-pointer">
           <AvatarImage src={avatarUrl} />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
