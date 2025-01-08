@@ -38,14 +38,31 @@ export function DirectMessagesList() {
   const [, setLocation] = useLocation();
 
   // Fetch all users except current user
-  const { data: users = [], isError: isUsersError } = useQuery<User[]>({
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ["/api/users"],
-    enabled: !!currentUser, // Only fetch when user is logged in
+    queryFn: async () => {
+      const res = await fetch("/api/users", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch users");
+      }
+      return res.json();
+    },
   });
 
   // Fetch existing conversations
-  const { data: conversations = [], isError: isConversationsError } = useQuery<Conversation[]>({
+  const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ["/api/dm/conversations"],
+    queryFn: async () => {
+      const res = await fetch("/api/dm/conversations", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        throw new Error("Failed to fetch conversations");
+      }
+      return res.json();
+    },
     enabled: !!currentUser,
   });
 
@@ -73,12 +90,10 @@ export function DirectMessagesList() {
     }
   };
 
-  if (isUsersError || isConversationsError) {
-    return null;
-  }
+  if (!currentUser) return null;
 
   // Filter out current user from the users list
-  const otherUsers = users.filter(user => user.id !== currentUser?.id);
+  const otherUsers = users.filter(user => user.id !== currentUser.id);
 
   // Sort users: active conversations first, then by username
   const sortedUsers = otherUsers.sort((a, b) => {

@@ -44,11 +44,30 @@ export default function DirectMessagePage() {
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
-    enabled: !!otherUserId,
+    queryFn: async () => {
+      const response = await fetch(`/api/dm/conversations/${otherUserId}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error("Failed to get conversation");
+      }
+      return response.json();
+    },
+    enabled: !!otherUserId && !!currentUser,
   });
 
   const { data: messages = [], isLoading: isLoadingMessages } = useQuery<Message[]>({
     queryKey: [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/dm/conversations/${conversation?.conversation?.id}/messages`,
+        { credentials: 'include' }
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch messages");
+      }
+      return response.json();
+    },
     enabled: !!conversation?.conversation?.id,
   });
 

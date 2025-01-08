@@ -1,7 +1,13 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Server } from "http";
 import { db } from "@db";
-import { messages, users, directMessages, directMessageParticipants } from "@db/schema";
+import {
+  messages,
+  users,
+  directMessages,
+  directMessageParticipants,
+  directMessageConversations,
+} from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 interface ExtendedWebSocket extends WebSocket {
@@ -53,7 +59,10 @@ export function setupWebSocket(server: Server) {
         } else if (message.type === "new_direct_message") {
           const { conversationId, content, senderId } = message.payload;
           if (!conversationId || !content || !senderId) {
-            console.error("[WebSocket] Invalid message payload:", message.payload);
+            console.error(
+              "[WebSocket] Invalid message payload:",
+              message.payload,
+            );
             return;
           }
 
@@ -79,17 +88,22 @@ export function setupWebSocket(server: Server) {
                 .from(users)
                 .where(eq(users.id, senderId))
                 .limit(1);
-
+              await db
+                .update(directMessageConversations)
+                .set({ lastMessageAt: new Date() })
+                .where(eq(directMessageConversations.id, conversationId));
               // Get conversation participants
               const participants = await db
                 .select({
                   userId: directMessageParticipants.userId,
                 })
                 .from(directMessageParticipants)
-                .where(eq(directMessageParticipants.conversationId, conversationId));
+                .where(
+                  eq(directMessageParticipants.conversationId, conversationId),
+                );
 
               // Create a set of participant IDs for efficient lookup
-              const participantIds = new Set(participants.map(p => p.userId));
+              const participantIds = new Set(participants.map((p) => p.userId));
 
               // Broadcast to all participants
               const response = {
@@ -100,26 +114,38 @@ export function setupWebSocket(server: Server) {
                 },
               };
 
-              console.log("[WebSocket] Broadcasting to participants:", Array.from(participantIds));
+              console.log(
+                "[WebSocket] Broadcasting to participants:",
+                Array.from(participantIds),
+              );
               let delivered = 0;
               for (const client of clients) {
-                if (client.readyState === WebSocket.OPEN && 
-                    client.userId && 
-                    participantIds.has(client.userId)) {
-                  console.log(`[WebSocket] Delivering to user ${client.userId}`);
+                if (
+                  client.readyState === WebSocket.OPEN &&
+                  client.userId &&
+                  participantIds.has(client.userId)
+                ) {
+                  console.log(
+                    `[WebSocket] Delivering to user ${client.userId}`,
+                  );
                   client.send(JSON.stringify(response));
                   delivered++;
                 }
               }
-              console.log(`[WebSocket] Message delivered to ${delivered} participants`);
+              console.log(
+                `[WebSocket] Message delivered to ${delivered} participants`,
+              );
             }
           } catch (error) {
-            console.error("[WebSocket] Failed to create direct message:", error);
+            console.error(
+              "[WebSocket] Failed to create direct message:",
+              error,
+            );
             extWs.send(
               JSON.stringify({
                 type: "error",
                 payload: { message: "Failed to create message" },
-              })
+              }),
             );
           }
         } else if (message.type === "message_reaction") {
@@ -139,7 +165,9 @@ export function setupWebSocket(server: Server) {
               if (!reactions[reaction].includes(userId)) {
                 reactions[reaction].push(userId);
               } else {
-                reactions[reaction] = reactions[reaction].filter((id: number) => id !== userId);
+                reactions[reaction] = reactions[reaction].filter(
+                  (id: number) => id !== userId,
+                );
               }
 
               const [updatedMessage] = await db
@@ -150,7 +178,7 @@ export function setupWebSocket(server: Server) {
 
               const response = {
                 type: "message_reaction_updated",
-                payload: { messageId, reactions: updatedMessage.reactions }
+                payload: { messageId, reactions: updatedMessage.reactions },
               };
 
               for (const client of clients) {
@@ -215,7 +243,7 @@ export function setupWebSocket(server: Server) {
               JSON.stringify({
                 type: "error",
                 payload: { message: "Failed to create message" },
-              })
+              }),
             );
           }
         }
