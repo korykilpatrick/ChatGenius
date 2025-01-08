@@ -10,6 +10,7 @@ import { useUser } from "@/hooks/use-user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DirectMessagesList } from "@/components/DirectMessagesList";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { Message } from "@db/schema";
 
 export default function ChatPage() {
@@ -32,6 +33,7 @@ export default function ChatPage() {
             <UserPresence />
             <span className="text-sm font-medium">{user?.username}</span>
           </div>
+          <ThemeToggle />
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
         </div>
       </header>
@@ -62,7 +64,7 @@ export default function ChatPage() {
           )}
           {selectedUserId && (
             <MessageList
-              userId={selectedUserId}
+              conversationId={selectedUserId}
               onThreadSelect={setSelectedThread}
             />
           )}
