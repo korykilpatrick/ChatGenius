@@ -1,13 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --transition-default: 0.15s ease-in-out;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+}
+
+@layer components {
+  /* Layout Components */
+  .chat-layout {
+    @apply grid h-screen;
+    grid-template-rows: auto 1fr;
+  }
+
+  .global-header {
+    @apply fixed top-0 left-0 right-0 h-14 px-4 
+           flex items-center justify-between 
+           bg-background border-b z-50
+           transition-all duration-200;
+  }
+
+  .chat-sidebar {
+    @apply w-[260px] h-full bg-muted/50 
+           border-r overflow-y-auto
+           transition-all duration-200;
+  }
+
+  .chat-main {
+    @apply flex-1 flex flex-col min-w-0
+           bg-background overflow-hidden;
+  }
+
+  /* Message Components */
+  .message-bubble {
+    @apply p-3 rounded-lg max-w-[85%] break-words
+           transition-colors duration-200
+           hover:bg-muted/50;
+  }
+
+  .message-input {
+    @apply w-full min-h-[56px] p-3 
+           rounded-lg border bg-background
+           focus-visible:outline-none focus-visible:ring-1
+           transition-all duration-200;
+  }
+
+  /* User Components */
+  .user-presence {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+
+  .user-presence[data-status="online"] {
+    @apply bg-green-500;
+  }
+
+  .user-presence[data-status="offline"] {
+    @apply bg-gray-400;
+  }
+
+  /* Interactive States */
+  .hover-highlight {
+    @apply transition-colors duration-200
+           hover:bg-muted/60 active:bg-muted/80;
+  }
+}
+
+@layer utilities {
+  .text-channel {
+    @apply text-sm font-medium tracking-wide uppercase;
+  }
+
+  .text-timestamp {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .shadow-subtle {
+    @apply shadow-[0_1px_2px_rgba(0,0,0,0.05)];
+  }
+
+  /* Scrollbar styling */
+  .custom-scrollbar {
+    @apply scrollbar-thin scrollbar-thumb-muted-foreground/10 
+           hover:scrollbar-thumb-muted-foreground/20
+           scrollbar-track-transparent;
   }
 }

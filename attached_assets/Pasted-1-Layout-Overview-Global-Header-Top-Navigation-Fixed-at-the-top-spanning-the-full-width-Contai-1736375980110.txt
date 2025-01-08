@@ -1,0 +1,70 @@
+1. Layout Overview
+Global Header (Top Navigation)
+
+Fixed at the top, spanning the full width.
+Contains:
+App Logo or Name in the left corner (e.g., “ChatGenius”).
+User Presence/Avatar in the right corner (indicates online/offline status).
+Height: ~3rem–4rem.
+Background Color: White or very light gray (e.g., #FAFAFA).
+Box Shadow: Subtle shadow at the bottom (e.g., box-shadow: 0 1px 2px rgba(0,0,0,0.05)).
+Left Sidebar (Channels & DMs)
+
+Persistent vertical panel on the left.
+Width: ~260px–280px.
+Sections:
+Channels: List of channels with “#” icons or symbols.
+Direct Messages: List of user avatars and short statuses.
+Background: White or a slight gray (e.g., #F7F7F7).
+Hover States: Subtle highlight for hovered channels/DMs.
+Main Chat Area
+
+Separated into:
+Message List in the center.
+Message Input at the bottom.
+Width: Fills remaining horizontal space.
+Padding: ~1rem on each side for comfortable reading.
+Background: White or nearly white.
+Scroll Behavior: The main messages area should be scrollable from top to bottom.
+2. Color Palette & Theming
+Primary Accent
+A slight pop color for highlights, button hovers, reaction emojis, etc.
+Example: #625DF5 (lavender-blue) or a more playful teal (#4CDBC4).
+Secondary Accent
+A gentle complementary color for secondary actions.
+Example: a warm pink (#FC7AB9) or a subtle orange (#F8A35B).
+Neutrals
+Whites: #FFFFFF, #FAFAFA, #F5F5F5.
+Grays: range from #EAEAEA to #333333 for text.
+Ensure high contrast between text and background for accessibility. Consider a dark mode in the future if desired.
+
+3. Typography
+Font Family
+A clean sans-serif, such as “Inter”, “Roboto”, or “Open Sans”.
+Base Font Size: 14px–16px (Slack-like sizing).
+Message Text:
+14px or 15px, line-height around 1.4–1.5 for comfortable reading.
+Channel/DM Labels:
+Slightly smaller or uppercase headings at 13px–14px with letter spacing ~0.5px for clarity.
+Username & Timestamps:
+Emphasize username in bold (e.g., 600–700 weight).
+Timestamp in a lighter color (gray ~#999) and smaller text (12px).
+4. Visual Flair & Interactions
+Hover & Active States
+Channels, DMs, and buttons have subtle background highlights on hover.
+Example: transition: background-color 0.15s ease-in-out; and use a lightly tinted background (e.g., #F0F0F0) on hover.
+Reactions
+Display reaction emojis with a slight bounce or fade-in effect on click.
+Example CSS snippet:
+css
+Copy code
+.reaction {
+  transition: transform 0.2s ease;
+}
+.reaction:active {
+  transform: scale(1.2);
+}
+Channel/DM List
+On hover, show an icon for quick actions (e.g., “Add People” or “Edit Channel”).
+Animated Scroll
+On new message, smoothly scroll the messages container to the latest entry.
