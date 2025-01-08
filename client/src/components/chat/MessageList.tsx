@@ -30,13 +30,13 @@ export default function MessageList({
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // For DMs, first get or create the conversation
+  // Get conversation for DMs
   const { data: conversation } = useQuery({
     queryKey: [`/api/dm/conversations/${userId}`],
     enabled: !!userId,
   });
 
-  // Then fetch messages for either channel or DM conversation
+  // Fetch messages
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: channelId 
       ? [`/api/channels/${channelId}/messages`]
@@ -56,44 +56,32 @@ export default function MessageList({
     }
   }, [messages]);
 
+  // Handle real-time message updates
   const handleWebSocketMessage = useCallback(
     (message: any) => {
       if (message.type === "message_created") {
-        if (
-          (channelId && message.payload.message.channelId === channelId) ||
-          (userId && message.payload.message.userId === userId)
-        ) {
-          if (!message.payload.message.parentId) {
-            queryClient.setQueryData(
-              channelId 
-                ? [`/api/channels/${channelId}/messages`]
-                : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
-              (oldData: Message[] = []) => {
-                const newMessage = {
-                  ...message.payload.message,
-                  user: message.payload.user,
-                };
-                const exists = oldData.some((msg) => msg.id === newMessage.id);
-                return exists ? oldData : [...oldData, newMessage];
-              },
-            );
-          }
+        const isRelevantMessage = channelId 
+          ? message.payload.message.channelId === channelId
+          : message.payload.message.conversationId === conversation?.conversation?.id;
+
+        if (isRelevantMessage && !message.payload.message.parentId) {
+          queryClient.setQueryData(
+            channelId 
+              ? [`/api/channels/${channelId}/messages`]
+              : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+            (oldData: Message[] = []) => {
+              const newMessage = {
+                ...message.payload.message,
+                user: message.payload.user,
+              };
+              const exists = oldData.some((msg) => msg.id === newMessage.id);
+              return exists ? oldData : [...oldData, newMessage];
+            }
+          );
         }
-      } else if (message.type === "message_reaction_updated") {
-        const { messageId, reactions } = message.payload;
-        queryClient.setQueryData(
-          channelId
-            ? [`/api/channels/${channelId}/messages`]
-            : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
-          (oldData: Message[] = []) => {
-            return oldData.map((msg) =>
-              msg.id === messageId ? { ...msg, reactions } : msg,
-            );
-          },
-        );
       }
     },
-    [channelId, userId, conversation?.conversation?.id, queryClient],
+    [channelId, conversation?.conversation?.id, queryClient]
   );
 
   useEffect(() => {
@@ -101,18 +89,18 @@ export default function MessageList({
 
     const unsubscribe = subscribe(handleWebSocketMessage);
     return () => unsubscribe();
-  }, [channelId, userId, isConnected, subscribe, handleWebSocketMessage]);
+  }, [channelId, userId, subscribe, handleWebSocketMessage]);
+
+  // Sort messages by creation date (oldest first)
+  const sortedMessages = [...messages].sort((a, b) => 
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string, userId?: number) => {
       sendMessage("message_reaction", { messageId, reaction, userId });
     },
     [sendMessage],
-  );
-
-  // Sort messages by creation date (oldest first)
-  const sortedMessages = [...messages].sort((a, b) => 
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
   return (

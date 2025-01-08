@@ -18,10 +18,10 @@ export function registerRoutes(app: Express): Server {
 
   // Protect all API routes except auth routes
   app.use("/api", (req, res, next) => {
-    if (req.path.startsWith("/api/login") || 
-        req.path.startsWith("/api/register") || 
-        req.path.startsWith("/api/user") && req.method === "GET" ||
-        req.path.startsWith("/api/users/") && req.method === "GET") {
+    if (req.path.startsWith("/api/login") ||
+      req.path.startsWith("/api/register") ||
+      req.path.startsWith("/api/user") && req.method === "GET" ||
+      req.path.startsWith("/api/users/") && req.method === "GET") {
       return next();
     }
 
@@ -160,9 +160,47 @@ export function registerRoutes(app: Express): Server {
     const userId = req.user!.id;
     const otherUserId = parseInt(req.params.conversationId);
 
+    if (isNaN(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     try {
-      // Get conversation between these two users
-      const existingConversation = await db
+      // First try to find an existing conversation between these users
+      const [existingConversation] = await db
+        .select({
+          id: directMessageConversations.id,
+        })
+        .from(directMessageParticipants as "p1")
+        .innerJoin(
+          directMessageParticipants as "p2",
+          and(
+            eq("p1.conversationId", "p2.conversationId"),
+            eq("p2.userId", otherUserId)
+          )
+        )
+        .where(eq("p1.userId", userId));
+
+      let conversationId;
+      if (existingConversation) {
+        conversationId = existingConversation.id;
+      } else {
+        // Create new conversation if none exists
+        const [newConversation] = await db
+          .insert(directMessageConversations)
+          .values({})
+          .returning();
+
+        // Add both users as participants
+        await db.insert(directMessageParticipants).values([
+          { conversationId: newConversation.id, userId },
+          { conversationId: newConversation.id, userId: otherUserId },
+        ]);
+
+        conversationId = newConversation.id;
+      }
+
+      // Get conversation with participant info
+      const [conversation] = await db
         .select({
           conversation: {
             id: directMessageConversations.id,
@@ -177,70 +215,12 @@ export function registerRoutes(app: Express): Server {
         })
         .from(directMessageConversations)
         .innerJoin(
-          directMessageParticipants,
-          eq(directMessageParticipants.conversationId, directMessageConversations.id)
-        )
-        .innerJoin(
           users,
           eq(users.id, otherUserId)
         )
-        .where(
-          and(
-            exists(
-              db.select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
-                    eq(directMessageParticipants.userId, userId)
-                  )
-                )
-            ),
-            exists(
-              db.select()
-                .from(directMessageParticipants)
-                .where(
-                  and(
-                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
-                    eq(directMessageParticipants.userId, otherUserId)
-                  )
-                )
-            )
-          )
-        )
-        .limit(1);
+        .where(eq(directMessageConversations.id, conversationId));
 
-      if (existingConversation && existingConversation.length > 0) {
-        res.json(existingConversation[0]);
-        return;
-      }
-
-      // If no conversation exists, create a new one
-      const [newConversation] = await db
-        .insert(directMessageConversations)
-        .values({})
-        .returning();
-
-      // Add both users as participants
-      await db.insert(directMessageParticipants).values([
-        { conversationId: newConversation.id, userId },
-        { conversationId: newConversation.id, userId: otherUserId },
-      ]);
-
-      // Get the participant info
-      const [participant] = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          avatar: users.avatar,
-        })
-        .from(users)
-        .where(eq(users.id, otherUserId));
-
-      res.json({
-        conversation: newConversation,
-        participant,
-      });
+      res.json(conversation);
     } catch (error) {
       console.error("Error fetching conversation:", error);
       res.status(500).json({ message: "Failed to fetch conversation" });
