@@ -64,19 +64,24 @@ export function useUser() {
   };
 
   const logout = async () => {
+    // Clear cache before making the logout request to prevent UI lag
+    queryClient.clear();
+    queryClient.setQueryData(['user'], null);
+
     const response = await fetch('/api/logout', {
       method: 'POST',
       credentials: 'include',
     });
 
-    if (response.ok) {
-      // Clear all queries in the cache
-      queryClient.clear();
-      // Or use this to clear specific queries
-      // queryClient.removeQueries();
-      queryClient.setQueryData(['user'], null);
+    if (!response.ok) {
+      // If logout fails, attempt to restore the user state
+      queryClient.invalidateQueries({ queryKey: ['user'] });
+      throw new Error('Logout failed');
     }
-    return response.ok;
+
+    // Force reload all queries after successful logout
+    queryClient.resetQueries();
+    return true;
   };
 
   return { user, isLoading, error, login, logout, register };

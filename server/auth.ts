@@ -173,8 +173,22 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/logout", (req, res) => {
-    req.session.destroy(() => {
-      res.clearCookie("connect.sid");
+    // Clear user data immediately
+    req.user = undefined;
+
+    // Destroy session and clear cookie
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Logout error:", err);
+        return res.status(500).json({ message: "Failed to logout" });
+      }
+
+      res.clearCookie("connect.sid", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+      });
+
       res.json({ message: "Logout successful" });
     });
   });
