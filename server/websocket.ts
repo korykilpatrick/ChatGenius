@@ -1,11 +1,12 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Server } from "http";
 import { db } from "@db";
-import { messages, users } from "@db/schema";
+import { messages, users, directMessages, directMessageParticipants } from "@db/schema";
 import { eq, and } from "drizzle-orm";
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
+  userId?: number;
 }
 
 interface WebSocketMessage {
@@ -21,6 +22,11 @@ export function setupWebSocket(server: Server) {
   });
 
   server.on("upgrade", (request, socket, head) => {
+    // Ignore vite HMR requests
+    if (request.headers["sec-websocket-protocol"] === "vite-hmr") {
+      return;
+    }
+
     if (request.url === "/ws") {
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit("connection", ws, request);
@@ -34,14 +40,89 @@ export function setupWebSocket(server: Server) {
     const extWs = ws as ExtendedWebSocket;
     extWs.isAlive = true;
     clients.add(extWs);
-    console.log("New WebSocket connection established");
+    console.log("[WebSocket] New connection established");
 
     extWs.on("message", async (data: Buffer) => {
       try {
         const message: WebSocketMessage = JSON.parse(data.toString());
-        console.log("Received message:", message);
+        console.log("[WebSocket] Received message:", message);
 
-        if (message.type === "message_reaction") {
+        if (message.type === "user_connected") {
+          extWs.userId = message.payload.userId;
+          console.log(`[WebSocket] User ${extWs.userId} connected`);
+        } else if (message.type === "new_direct_message") {
+          const { conversationId, content, senderId } = message.payload;
+          if (!conversationId || !content || !senderId) {
+            console.error("[WebSocket] Invalid message payload:", message.payload);
+            return;
+          }
+
+          try {
+            // Insert the direct message
+            const [newMessage] = await db
+              .insert(directMessages)
+              .values({
+                conversationId,
+                content,
+                senderId,
+              })
+              .returning();
+
+            if (newMessage) {
+              // Get the sender's data
+              const [userData] = await db
+                .select({
+                  id: users.id,
+                  username: users.username,
+                  avatar: users.avatar,
+                })
+                .from(users)
+                .where(eq(users.id, senderId))
+                .limit(1);
+
+              // Get conversation participants
+              const participants = await db
+                .select({
+                  userId: directMessageParticipants.userId,
+                })
+                .from(directMessageParticipants)
+                .where(eq(directMessageParticipants.conversationId, conversationId));
+
+              // Create a set of participant IDs for efficient lookup
+              const participantIds = new Set(participants.map(p => p.userId));
+
+              // Broadcast to all participants
+              const response = {
+                type: "message_created",
+                payload: {
+                  message: newMessage,
+                  user: userData,
+                },
+              };
+
+              console.log("[WebSocket] Broadcasting to participants:", Array.from(participantIds));
+              let delivered = 0;
+              for (const client of clients) {
+                if (client.readyState === WebSocket.OPEN && 
+                    client.userId && 
+                    participantIds.has(client.userId)) {
+                  console.log(`[WebSocket] Delivering to user ${client.userId}`);
+                  client.send(JSON.stringify(response));
+                  delivered++;
+                }
+              }
+              console.log(`[WebSocket] Message delivered to ${delivered} participants`);
+            }
+          } catch (error) {
+            console.error("[WebSocket] Failed to create direct message:", error);
+            extWs.send(
+              JSON.stringify({
+                type: "error",
+                payload: { message: "Failed to create message" },
+              })
+            );
+          }
+        } else if (message.type === "message_reaction") {
           const { messageId, reaction, userId } = message.payload;
           try {
             const [existingMessage] = await db
@@ -79,7 +160,7 @@ export function setupWebSocket(server: Server) {
               }
             }
           } catch (error) {
-            console.error("Failed to update reaction:", error);
+            console.error("[WebSocket] Failed to update reaction:", error);
           }
         } else if (message.type === "new_message") {
           const { channelId, content, userId, parentId } = message.payload;
@@ -122,40 +203,40 @@ export function setupWebSocket(server: Server) {
                 // Broadcast to all clients
                 for (const client of clients) {
                   if (client.readyState === WebSocket.OPEN) {
-                    console.log("Sending to client:", response);
+                    console.log("[WebSocket] Sending to client:", response);
                     client.send(JSON.stringify(response));
                   }
                 }
               }
             }
           } catch (error) {
-            console.error("Failed to create message:", error);
+            console.error("[WebSocket] Failed to create message:", error);
             extWs.send(
               JSON.stringify({
                 type: "error",
                 payload: { message: "Failed to create message" },
-              }),
+              })
             );
           }
         }
       } catch (error) {
-        console.error("Failed to process message:", error);
+        console.error("[WebSocket] Failed to process message:", error);
       }
     });
 
     extWs.on("close", () => {
       clients.delete(extWs);
-      console.log("Client disconnected");
+      console.log("[WebSocket] Client disconnected");
     });
 
     extWs.on("error", (error) => {
-      console.error("WebSocket error:", error);
+      console.error("[WebSocket] Client error:", error);
       clients.delete(extWs);
     });
   });
 
   wss.on("error", (error) => {
-    console.error("WebSocket server error:", error);
+    console.error("[WebSocket] Server error:", error);
   });
 
   return wss;

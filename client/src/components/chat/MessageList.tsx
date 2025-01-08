@@ -16,7 +16,7 @@ import {
 
 type MessageListProps = {
   channelId?: number;
-  userId?: number;
+  conversationId?: number;
   onThreadSelect: (message: Message) => void;
 };
 
@@ -24,24 +24,18 @@ const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "�
 
 export default function MessageList({
   channelId,
-  userId,
+  conversationId,
   onThreadSelect,
 }: MessageListProps) {
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Get conversation for DMs
-  const { data: conversation } = useQuery({
-    queryKey: [`/api/dm/conversations/${userId}`],
-    enabled: !!userId,
-  });
-
-  // Fetch messages
+  // Fetch messages based on channel or conversation
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: channelId 
       ? [`/api/channels/${channelId}/messages`]
-      : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
-    enabled: !!channelId || (!!userId && !!conversation?.conversation?.id),
+      : [`/api/dm/conversations/${conversationId}/messages`],
+    enabled: !!channelId || !!conversationId,
   });
 
   const { subscribe, sendMessage, isConnected } = useWebSocket();
@@ -62,13 +56,13 @@ export default function MessageList({
       if (message.type === "message_created") {
         const isRelevantMessage = channelId 
           ? message.payload.message.channelId === channelId
-          : message.payload.message.conversationId === conversation?.conversation?.id;
+          : message.payload.message.conversationId === conversationId;
 
         if (isRelevantMessage && !message.payload.message.parentId) {
           queryClient.setQueryData(
             channelId 
               ? [`/api/channels/${channelId}/messages`]
-              : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+              : [`/api/dm/conversations/${conversationId}/messages`],
             (oldData: Message[] = []) => {
               const newMessage = {
                 ...message.payload.message,
@@ -84,7 +78,7 @@ export default function MessageList({
         queryClient.setQueryData(
           channelId
             ? [`/api/channels/${channelId}/messages`]
-            : [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+            : [`/api/dm/conversations/${conversationId}/messages`],
           (oldData: Message[] = []) => {
             return oldData.map((msg) =>
               msg.id === messageId ? { ...msg, reactions } : msg,
@@ -93,15 +87,15 @@ export default function MessageList({
         );
       }
     },
-    [channelId, conversation?.conversation?.id, queryClient]
+    [channelId, conversationId, queryClient]
   );
 
   useEffect(() => {
-    if (!channelId && !userId) return;
+    if (!channelId && !conversationId) return;
 
     const unsubscribe = subscribe(handleWebSocketMessage);
     return () => unsubscribe();
-  }, [channelId, userId, subscribe, handleWebSocketMessage]);
+  }, [channelId, conversationId, subscribe, handleWebSocketMessage]);
 
   // Sort messages by creation date (oldest first)
   const sortedMessages = [...messages].sort((a, b) => 
@@ -187,17 +181,19 @@ export default function MessageList({
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onThreadSelect(message)}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                  </Button>
+                  {channelId && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onThreadSelect(message)}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
-              {message.replies && message.replies.length > 0 && (
+              {message.replies && message.replies.length > 0 && channelId && (
                 <Button
                   variant="ghost"
                   className="ml-12 mt-2 text-xs"
@@ -210,7 +206,7 @@ export default function MessageList({
           ))}
         </div>
       </ScrollArea>
-      <MessageInput channelId={channelId} userId={userId} />
+      <MessageInput channelId={channelId} conversationId={conversationId} />
     </div>
   );
 }

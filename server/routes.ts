@@ -171,7 +171,7 @@ export function registerRoutes(app: Express): Server {
             avatar: users.avatar,
           },
         })
-        .from(directMessageParticipants as any)
+        .from(directMessageParticipants)
         .innerJoin(
           directMessageConversations,
           eq(directMessageParticipants.conversationId, directMessageConversations.id)
@@ -251,6 +251,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to handle conversation" });
     }
   });
+
 
 
   app.post("/api/dm/conversations", async (req, res) => {
@@ -390,7 +391,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to send message" });
     }
   });
-
 
 
   // Channels

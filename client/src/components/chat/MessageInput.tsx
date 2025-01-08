@@ -6,11 +6,12 @@ import { useUser } from "@/hooks/use-user";
 import { PaperclipIcon, SendIcon } from "lucide-react";
 
 type MessageInputProps = {
-  channelId: number;
+  channelId?: number;
+  conversationId?: number;
   parentId?: number;
 };
 
-export default function MessageInput({ channelId, parentId }: MessageInputProps) {
+export default function MessageInput({ channelId, conversationId, parentId }: MessageInputProps) {
   const [content, setContent] = useState("");
   const { sendMessage } = useWebSocket();
   const { user } = useUser();
@@ -19,12 +20,20 @@ export default function MessageInput({ channelId, parentId }: MessageInputProps)
     e.preventDefault();
     if (!content.trim() || !user) return;
 
-    sendMessage("new_message", {
-      content: content.trim(),
-      channelId,
-      userId: user.id,
-      parentId
-    });
+    if (channelId) {
+      sendMessage("new_message", {
+        content: content.trim(),
+        channelId,
+        userId: user.id,
+        parentId
+      });
+    } else if (conversationId) {
+      sendMessage("new_direct_message", {
+        content: content.trim(),
+        conversationId,
+        senderId: user.id
+      });
+    }
 
     setContent("");
   };

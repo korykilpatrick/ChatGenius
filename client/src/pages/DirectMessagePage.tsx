@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
+import MessageInput from "@/components/chat/MessageInput";
 
 interface Message {
   id: number;
@@ -36,13 +35,12 @@ interface Conversation {
 }
 
 export default function DirectMessagePage() {
-  const [message, setMessage] = useState("");
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const { subscribe, sendMessage: sendWebSocketMessage, isConnected } = useWebSocket();
+  const { subscribe } = useWebSocket();
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -51,58 +49,32 @@ export default function DirectMessagePage() {
 
   const { data: messages = [], isLoading: isLoadingMessages } = useQuery<Message[]>({
     queryKey: [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
-    enabled: !!otherUserId && !!conversation?.conversation?.id,
+    enabled: !!conversation?.conversation?.id,
   });
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim() || !conversation?.conversation?.id) return;
-
-    try {
-      const response = await fetch(
-        `/api/dm/conversations/${conversation.conversation.id}/messages`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: message.trim() }),
-          credentials: 'include',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to send message");
-      }
-
-      setMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send message",
-        variant: "destructive",
-      });
-    }
-  };
+  // Sort messages by creation date (oldest first)
+  const sortedMessages = [...messages].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 
   // Handle WebSocket messages for real-time updates
   useEffect(() => {
     if (!conversation?.conversation?.id) return;
 
     const handleWebSocketMessage = (message: any) => {
-      if (message.type === "message_created") {
-        if (message.payload.message.conversationId === conversation.conversation.id) {
-          queryClient.setQueryData(
-            [`/api/dm/conversations/${conversation.conversation.id}/messages`],
-            (oldData: Message[] = []) => {
-              const newMessage = {
-                ...message.payload.message,
-                sender: message.payload.user,
-              };
-              const exists = oldData.some((msg) => msg.id === newMessage.id);
-              return exists ? oldData : [...oldData, newMessage];
-            }
-          );
-        }
+      if (message.type === "message_created" && 
+          message.payload.message.conversationId === conversation.conversation.id) {
+        queryClient.setQueryData(
+          [`/api/dm/conversations/${conversation.conversation.id}/messages`],
+          (oldData: Message[] = []) => {
+            const newMessage = {
+              ...message.payload.message,
+              sender: message.payload.user,
+            };
+            const exists = oldData.some((msg) => msg.id === newMessage.id);
+            return exists ? oldData : [...oldData, newMessage];
+          }
+        );
       }
     };
 
@@ -129,11 +101,6 @@ export default function DirectMessagePage() {
   }
 
   const { participant } = conversation;
-
-  // Sort messages by creation date (oldest first)
-  const sortedMessages = [...messages].sort((a, b) =>
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
 
   return (
     <div className="flex flex-col h-screen">
@@ -198,19 +165,7 @@ export default function DirectMessagePage() {
         </div>
       </ScrollArea>
 
-      <form onSubmit={sendMessage} className="border-t p-4">
-        <div className="flex gap-2">
-          <Input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1"
-          />
-          <Button type="submit" disabled={!message.trim()}>
-            Send
-          </Button>
-        </div>
-      </form>
+      <MessageInput conversationId={conversation.conversation.id} />
     </div>
   );
 }
