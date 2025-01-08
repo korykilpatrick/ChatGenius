@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { channels, messages, channelMembers, users, directMessageConversations, directMessageParticipants, directMessages } from "@db/schema";
-import { eq, and, desc, asc, isNull, or, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, or, inArray, exists } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes first
@@ -156,6 +156,85 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get("/api/dm/conversations/:conversationId", async (req, res) => {
+    const userId = req.user!.id;
+    const otherUserId = parseInt(req.params.conversationId);
+
+    try {
+      // Get conversation between these two users
+      const [conversation] = await db
+        .select({
+          conversation: {
+            id: directMessageConversations.id,
+            createdAt: directMessageConversations.createdAt,
+            lastMessageAt: directMessageConversations.lastMessageAt,
+          },
+          participant: {
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar,
+          },
+        })
+        .from(directMessageConversations)
+        .innerJoin(
+          directMessageParticipants,
+          eq(directMessageParticipants.conversationId, directMessageConversations.id)
+        )
+        .innerJoin(
+          users,
+          and(
+            eq(users.id, directMessageParticipants.userId),
+            eq(users.id, otherUserId)
+          )
+        )
+        .where(
+          exists(
+            db.select()
+              .from(directMessageParticipants)
+              .where(
+                and(
+                  eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                  eq(directMessageParticipants.userId, userId)
+                )
+              )
+          )
+        );
+
+      if (!conversation) {
+        // Create new conversation if it doesn't exist
+        const [newConversation] = await db
+          .insert(directMessageConversations)
+          .values({})
+          .returning();
+
+        await db.insert(directMessageParticipants).values([
+          { conversationId: newConversation.id, userId },
+          { conversationId: newConversation.id, userId: otherUserId },
+        ]);
+
+        // Get the participant info
+        const [participant] = await db
+          .select({
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar,
+          })
+          .from(users)
+          .where(eq(users.id, otherUserId));
+
+        res.json({
+          conversation: newConversation,
+          participant,
+        });
+      } else {
+        res.json(conversation);
+      }
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
   app.get("/api/dm/conversations/:conversationId/messages", async (req, res) => {
     const userId = req.user!.id;
     const otherUserId = parseInt(req.params.conversationId);
@@ -172,7 +251,7 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(directMessageParticipants.userId, userId),
-            eq(directMessageParticipants.userId, otherUserId) //Corrected this line for better logic.  Original was incorrect.
+            eq(directMessageParticipants.userId, otherUserId) 
           )
         );
 
@@ -199,7 +278,7 @@ export function registerRoutes(app: Express): Server {
         })
         .from(directMessages)
         .innerJoin(users, eq(users.id, directMessages.senderId))
-        .where(eq(directMessages.conversationId, conversation.id)) // Corrected this line to use conversation.id
+        .where(eq(directMessages.conversationId, conversation.id)) 
         .orderBy(desc(directMessages.createdAt));
 
       res.json(messages.map(({ message, sender }) => ({
