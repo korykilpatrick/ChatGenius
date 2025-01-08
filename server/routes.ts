@@ -5,6 +5,7 @@ import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { channels, messages, channelMembers, users, directMessageConversations, directMessageParticipants, directMessages } from "@db/schema";
 import { eq, and, desc, asc, isNull, or, inArray, not, exists, max } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes first
@@ -155,7 +156,7 @@ export function registerRoutes(app: Express): Server {
       const existingConversations = await db
         .select({
           conversationId: directMessageParticipants.conversationId,
-          count: db.fn.count<number>(directMessageParticipants.id).as('participant_count')
+          participantCount: sql<number>`count(*)`.as('participant_count')
         })
         .from(directMessageParticipants)
         .where(
@@ -165,7 +166,7 @@ export function registerRoutes(app: Express): Server {
           )
         )
         .groupBy(directMessageParticipants.conversationId)
-        .having({ count: 2 });
+        .having(sql`count(*) = 2`);
 
       let conversation;
 
