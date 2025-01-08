@@ -1,4 +1,3 @@
-
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InsertUser } from "@db/schema";
 
@@ -9,7 +8,9 @@ export function useUser() {
     queryKey: ['user'],
     queryFn: async () => {
       try {
-        const response = await fetch('/api/user');
+        const response = await fetch('/api/user', {
+          credentials: 'include'
+        });
         if (!response.ok) {
           return null;
         }
@@ -28,12 +29,12 @@ export function useUser() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message);
     }
-    
+
     const result = await response.json();
     queryClient.setQueryData(['user'], result.user);
     return result;
@@ -45,12 +46,12 @@ export function useUser() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message);
     }
-    
+
     const result = await response.json();
     queryClient.setQueryData(['user'], result.user);
     return result;
