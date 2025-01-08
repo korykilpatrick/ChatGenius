@@ -14,6 +14,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const authSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -51,10 +52,13 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-md mx-4 bg-white">
+    <div className="min-h-screen flex items-center justify-center bg-background dark:bg-zinc-900 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <Card className="w-full max-w-md mx-4">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">
+          <CardTitle className="text-2xl text-center text-foreground">
             Welcome to ChatGenius
           </CardTitle>
         </CardHeader>

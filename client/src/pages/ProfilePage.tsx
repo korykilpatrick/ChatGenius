@@ -19,6 +19,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -130,13 +131,14 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-background dark:bg-zinc-900">
       {/* Navigation header */}
-      <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
+      <header className="border-b h-14 flex items-center px-4 justify-between bg-background/80 backdrop-blur-sm dark:bg-zinc-900/80 dark:border-zinc-800">
         <Link href="/" className="text-xl font-bold hover:opacity-80">
           ChatGenius
         </Link>
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
               <AvatarImage src={user?.avatar} />
@@ -217,7 +219,7 @@ export default function ProfilePage() {
                       <FormItem>
                         <Label>Bio</Label>
                         <FormControl>
-                          <Textarea 
+                          <Textarea
                             placeholder="Tell us about yourself..."
                             className="min-h-[100px]"
                             {...field}
