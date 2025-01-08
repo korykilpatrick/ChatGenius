@@ -35,6 +35,7 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/users", async (req, res) => {
     try {
       const currentUserId = req.user?.id;
+      console.log("Fetching users. Current user:", currentUserId);
 
       // Fetch all users except the current user
       const usersList = await db
@@ -49,6 +50,7 @@ export function registerRoutes(app: Express): Server {
         .where(currentUserId ? not(eq(users.id, currentUserId)) : undefined)
         .orderBy(asc(users.username));
 
+      console.log("Found users:", usersList);
       res.json(usersList);
     } catch (error) {
       console.error("Error fetching users:", error);

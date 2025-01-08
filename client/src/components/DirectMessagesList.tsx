@@ -37,17 +37,20 @@ export function DirectMessagesList() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
+  // Fetch all users except current user
   const { data: users = [], isError: isUsersError } = useQuery<User[]>({
     queryKey: ["/api/users"],
+    enabled: !!currentUser, // Only fetch when user is logged in
   });
 
+  // Fetch existing conversations
   const { data: conversations = [], isError: isConversationsError } = useQuery<Conversation[]>({
     queryKey: ["/api/dm/conversations"],
+    enabled: !!currentUser,
   });
 
   const startOrJoinConversation = async (participantId: number) => {
     try {
-      // Use the existing conversation endpoint which handles creating/finding conversations
       const response = await fetch(`/api/dm/conversations/${participantId}`, {
         method: "GET",
         credentials: 'include',
@@ -74,9 +77,11 @@ export function DirectMessagesList() {
     return null;
   }
 
+  // Filter out current user from the users list
+  const otherUsers = users.filter(user => user.id !== currentUser?.id);
+
   // Sort users: active conversations first, then by username
-  const sortedUsers = users.sort((a, b) => {
-    // Sort users with active conversations first
+  const sortedUsers = otherUsers.sort((a, b) => {
     const aHasConversation = conversations.some(
       conv => conv.participant.id === a.id
     );
@@ -88,6 +93,15 @@ export function DirectMessagesList() {
     if (!aHasConversation && bHasConversation) return 1;
     return a.username.localeCompare(b.username);
   });
+
+  if (sortedUsers.length === 0) {
+    return (
+      <div className="px-3 py-2">
+        <h2 className="mb-2 text-lg font-semibold tracking-tight">Direct Messages</h2>
+        <p className="text-sm text-muted-foreground">No other users available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="px-3 py-2">
