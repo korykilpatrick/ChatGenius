@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { setupWebSocket } from "./websocket";
 import { db } from "@db";
 import { channels, messages, channelMembers, users, directMessageConversations, directMessageParticipants, directMessages } from "@db/schema";
-import { eq, and, desc, asc, isNull, or, inArray, exists } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, or, inArray, not, exists, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 export function registerRoutes(app: Express): Server {
@@ -110,15 +110,34 @@ export function registerRoutes(app: Express): Server {
           and(
             eq(directMessageParticipants.userId, users.id),
             // Only get the other participant's info
-            inArray(directMessageParticipants.userId, [userId])
+            not(eq(directMessageParticipants.userId, userId))
           )
         )
         .leftJoin(
           directMessages,
-          eq(directMessages.conversationId, directMessageConversations.id)
+          and(
+            eq(directMessages.conversationId, directMessageConversations.id),
+            eq(
+              directMessages.createdAt,
+              db
+                .select({ maxCreatedAt: max(directMessages.createdAt) })
+                .from(directMessages)
+                .where(eq(directMessages.conversationId, directMessageConversations.id))
+            )
+          )
         )
         .where(
-          eq(directMessageParticipants.userId, userId)
+          exists(
+            db
+              .select()
+              .from(directMessageParticipants)
+              .where(
+                and(
+                  eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                  eq(directMessageParticipants.userId, userId)
+                )
+              )
+          )
         )
         .orderBy(desc(directMessageConversations.lastMessageAt));
 
@@ -128,6 +147,111 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to fetch conversations" });
     }
   });
+
+  app.get("/api/dm/conversations/:userId", async (req, res) => {
+    const currentUserId = req.user!.id;
+    const otherUserId = parseInt(req.params.userId);
+
+    if (isNaN(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    try {
+      // First try to find an existing conversation
+      const existingConversation = await db
+        .select({
+          conversation: {
+            id: directMessageConversations.id,
+            createdAt: directMessageConversations.createdAt,
+            lastMessageAt: directMessageConversations.lastMessageAt,
+          },
+          participant: {
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar,
+          },
+        })
+        .from(directMessageParticipants as any)
+        .innerJoin(
+          directMessageConversations,
+          eq(directMessageParticipants.conversationId, directMessageConversations.id)
+        )
+        .innerJoin(
+          users,
+          eq(users.id, otherUserId)
+        )
+        .where(
+          and(
+            exists(
+              db
+                .select()
+                .from(directMessageParticipants)
+                .where(
+                  and(
+                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
+                    eq(directMessageParticipants.userId, currentUserId)
+                  )
+                )
+            ),
+            exists(
+              db
+                .select()
+                .from(directMessageParticipants)
+                .where(
+                  and(
+                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
+                    eq(directMessageParticipants.userId, otherUserId)
+                  )
+                )
+            )
+          )
+        )
+        .limit(1);
+
+      if (existingConversation.length > 0) {
+        return res.json(existingConversation[0]);
+      }
+
+      // If no existing conversation, create a new one
+      const [newConversation] = await db
+        .insert(directMessageConversations)
+        .values({})
+        .returning();
+
+      // Add both users as participants
+      await db.insert(directMessageParticipants).values([
+        { conversationId: newConversation.id, userId: currentUserId },
+        { conversationId: newConversation.id, userId: otherUserId },
+      ]);
+
+      // Get the conversation with participant info
+      const [conversation] = await db
+        .select({
+          conversation: {
+            id: directMessageConversations.id,
+            createdAt: directMessageConversations.createdAt,
+            lastMessageAt: directMessageConversations.lastMessageAt,
+          },
+          participant: {
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar,
+          },
+        })
+        .from(directMessageConversations)
+        .innerJoin(
+          users,
+          eq(users.id, otherUserId)
+        )
+        .where(eq(directMessageConversations.id, newConversation.id));
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Error with conversation:", error);
+      res.status(500).json({ message: "Failed to handle conversation" });
+    }
+  });
+
 
   app.post("/api/dm/conversations", async (req, res) => {
     const userId = req.user!.id;
@@ -154,79 +278,6 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error creating DM conversation:", error);
       res.status(500).json({ message: "Failed to create conversation" });
-    }
-  });
-
-  app.get("/api/dm/conversations/:conversationId", async (req, res) => {
-    const userId = req.user!.id;
-    const otherUserId = parseInt(req.params.conversationId);
-
-    if (isNaN(otherUserId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
-
-    try {
-      // Create aliases for self-join
-      const p1 = alias(directMessageParticipants, "p1");
-      const p2 = alias(directMessageParticipants, "p2");
-
-      // Find existing conversation between these users
-      const [existingConversation] = await db
-        .select({
-          id: directMessageConversations.id,
-        })
-        .from(p1)
-        .innerJoin(p2, and(
-          eq(p1.conversationId, p2.conversationId),
-          eq(p2.userId, otherUserId)
-        ))
-        .innerJoin(directMessageConversations, eq(directMessageConversations.id, p1.conversationId))
-        .where(eq(p1.userId, userId));
-
-      let conversationId;
-      if (existingConversation) {
-        conversationId = existingConversation.id;
-      } else {
-        // Create new conversation if none exists
-        const [newConversation] = await db
-          .insert(directMessageConversations)
-          .values({})
-          .returning();
-
-        // Add both users as participants
-        await db.insert(directMessageParticipants).values([
-          { conversationId: newConversation.id, userId },
-          { conversationId: newConversation.id, userId: otherUserId },
-        ]);
-
-        conversationId = newConversation.id;
-      }
-
-      // Get conversation with participant info
-      const [conversation] = await db
-        .select({
-          conversation: {
-            id: directMessageConversations.id,
-            createdAt: directMessageConversations.createdAt,
-            lastMessageAt: directMessageConversations.lastMessageAt,
-          },
-          participant: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar,
-          },
-        })
-        .from(directMessageConversations)
-        .innerJoin(
-          users,
-          eq(users.id, otherUserId)
-        )
-        .where(eq(directMessageConversations.id, conversationId));
-
-      res.json(conversation);
-    } catch (error) {
-      console.error("Error fetching conversation:", error);
-      res.status(500).json({ message: "Failed to fetch conversation" });
     }
   });
 
@@ -339,6 +390,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to send message" });
     }
   });
+
 
 
   // Channels
