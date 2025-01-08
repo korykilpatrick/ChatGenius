@@ -53,7 +53,7 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background dark:bg-zinc-900 relative">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-4">
         <ThemeToggle />
       </div>
       <Card className="w-full max-w-md mx-4">
