@@ -240,9 +240,11 @@ export function registerRoutes(app: Express): Server {
     const otherUserId = parseInt(req.params.conversationId);
 
     try {
-      // First check if conversation exists, if not create it
-      let [conversation] = await db
-        .select()
+      // First get or create the conversation between these users
+      let [existingConversation] = await db
+        .select({
+          id: directMessageConversations.id
+        })
         .from(directMessageConversations)
         .innerJoin(
           directMessageParticipants,
@@ -251,25 +253,46 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(directMessageParticipants.userId, userId),
-            eq(directMessageParticipants.userId, otherUserId) 
+            exists(
+              db.select()
+                .from(directMessageParticipants)
+                .where(
+                  and(
+                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                    eq(directMessageParticipants.userId, otherUserId)
+                  )
+                )
+            )
           )
         );
 
-      if (!conversation) {
-        [conversation] = await db
+      let conversationId;
+
+      if (!existingConversation) {
+        // Create new conversation
+        const [newConversation] = await db
           .insert(directMessageConversations)
           .values({})
           .returning();
 
+        // Add both users as participants
         await db.insert(directMessageParticipants).values([
-          { conversationId: conversation.id, userId },
-          { conversationId: conversation.id, userId: otherUserId }
+          { conversationId: newConversation.id, userId },
+          { conversationId: newConversation.id, userId: otherUserId }
         ]);
+
+        conversationId = newConversation.id;
+      } else {
+        conversationId = existingConversation.id;
       }
 
+      // Now fetch messages for this conversation
       const messages = await db
         .select({
-          message: directMessages,
+          id: directMessages.id,
+          content: directMessages.content,
+          createdAt: directMessages.createdAt,
+          senderId: directMessages.senderId,
           sender: {
             id: users.id,
             username: users.username,
@@ -278,13 +301,10 @@ export function registerRoutes(app: Express): Server {
         })
         .from(directMessages)
         .innerJoin(users, eq(users.id, directMessages.senderId))
-        .where(eq(directMessages.conversationId, conversation.id)) 
+        .where(eq(directMessages.conversationId, conversationId))
         .orderBy(desc(directMessages.createdAt));
 
-      res.json(messages.map(({ message, sender }) => ({
-        ...message,
-        sender,
-      })));
+      res.json(messages);
     } catch (error) {
       console.error("Error fetching DM messages:", error);
       res.status(500).json({ message: "Failed to fetch messages" });
