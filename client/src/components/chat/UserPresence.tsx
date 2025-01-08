@@ -1,4 +1,6 @@
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +22,7 @@ export default function UserPresence() {
   const avatarUrl = user.avatar || undefined;
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger className="outline-none">
           <Avatar className="h-8 w-8 cursor-pointer hover:opacity-90">
@@ -33,13 +35,17 @@ export default function UserPresence() {
             <User className="mr-2 h-4 w-4" />
             <span>View Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => logout()} className="text-red-600">
-            <LogOut className="mr-2 h-4 w-4" />
-            <span>Logout</span>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={() => logout()}
+        className="text-red-600 hover:text-red-700 hover:bg-red-100"
+      >
+        <LogOut className="mr-2 h-4 w-4" />
+        Logout
+      </Button>
     </div>
   );
 }
