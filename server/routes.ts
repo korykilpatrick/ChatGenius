@@ -157,29 +157,26 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // First try to find an existing conversation
+      // First, verify the other user exists
+      const [otherUser] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        })
+        .from(users)
+        .where(eq(users.id, otherUserId));
+
+      if (!otherUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Find an existing conversation between these two users
       const existingConversation = await db
         .select({
-          conversation: {
-            id: directMessageConversations.id,
-            createdAt: directMessageConversations.createdAt,
-            lastMessageAt: directMessageConversations.lastMessageAt,
-          },
-          participant: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar,
-          },
+          id: directMessageConversations.id,
         })
-        .from(directMessageParticipants)
-        .innerJoin(
-          directMessageConversations,
-          eq(directMessageParticipants.conversationId, directMessageConversations.id)
-        )
-        .innerJoin(
-          users,
-          eq(users.id, otherUserId)
-        )
+        .from(directMessageConversations)
         .where(
           and(
             exists(
@@ -188,7 +185,7 @@ export function registerRoutes(app: Express): Server {
                 .from(directMessageParticipants)
                 .where(
                   and(
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
+                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
                     eq(directMessageParticipants.userId, currentUserId)
                   )
                 )
@@ -199,17 +196,37 @@ export function registerRoutes(app: Express): Server {
                 .from(directMessageParticipants)
                 .where(
                   and(
-                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
+                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
                     eq(directMessageParticipants.userId, otherUserId)
                   )
                 )
             )
           )
-        )
-        .limit(1);
+        );
 
       if (existingConversation.length > 0) {
-        return res.json(existingConversation[0]);
+        // Return existing conversation with participant info
+        const [conversation] = await db
+          .select({
+            conversation: {
+              id: directMessageConversations.id,
+              createdAt: directMessageConversations.createdAt,
+              lastMessageAt: directMessageConversations.lastMessageAt,
+            },
+            participant: {
+              id: users.id,
+              username: users.username,
+              avatar: users.avatar,
+            },
+          })
+          .from(directMessageConversations)
+          .innerJoin(
+            users,
+            eq(users.id, otherUserId)
+          )
+          .where(eq(directMessageConversations.id, existingConversation[0].id));
+
+        return res.json(conversation);
       }
 
       // If no existing conversation, create a new one
@@ -224,26 +241,11 @@ export function registerRoutes(app: Express): Server {
         { conversationId: newConversation.id, userId: otherUserId },
       ]);
 
-      // Get the conversation with participant info
-      const [conversation] = await db
-        .select({
-          conversation: {
-            id: directMessageConversations.id,
-            createdAt: directMessageConversations.createdAt,
-            lastMessageAt: directMessageConversations.lastMessageAt,
-          },
-          participant: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar,
-          },
-        })
-        .from(directMessageConversations)
-        .innerJoin(
-          users,
-          eq(users.id, otherUserId)
-        )
-        .where(eq(directMessageConversations.id, newConversation.id));
+      // Return the new conversation with participant info
+      const conversation = {
+        conversation: newConversation,
+        participant: otherUser,
+      };
 
       res.json(conversation);
     } catch (error) {
@@ -251,7 +253,6 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to handle conversation" });
     }
   });
-
 
 
   app.post("/api/dm/conversations", async (req, res) => {
