@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
+import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
 
 interface Message {
@@ -39,7 +40,9 @@ export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
   const { user: currentUser } = useUser();
+  const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
+  const { subscribe, sendMessage: sendWebSocketMessage, isConnected } = useWebSocket();
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -47,17 +50,17 @@ export default function DirectMessagePage() {
   });
 
   const { data: messages = [], isLoading: isLoadingMessages } = useQuery<Message[]>({
-    queryKey: [`/api/dm/conversations/${otherUserId}/messages`],
-    enabled: !!otherUserId && !!conversation,
+    queryKey: [`/api/dm/conversations/${conversation?.conversation?.id}/messages`],
+    enabled: !!otherUserId && !!conversation?.conversation?.id,
   });
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !otherUserId) return;
+    if (!message.trim() || !conversation?.conversation?.id) return;
 
     try {
       const response = await fetch(
-        `/api/dm/conversations/${otherUserId}/messages`,
+        `/api/dm/conversations/${conversation.conversation.id}/messages`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -81,6 +84,32 @@ export default function DirectMessagePage() {
     }
   };
 
+  // Handle WebSocket messages for real-time updates
+  useEffect(() => {
+    if (!conversation?.conversation?.id) return;
+
+    const handleWebSocketMessage = (message: any) => {
+      if (message.type === "message_created") {
+        if (message.payload.message.conversationId === conversation.conversation.id) {
+          queryClient.setQueryData(
+            [`/api/dm/conversations/${conversation.conversation.id}/messages`],
+            (oldData: Message[] = []) => {
+              const newMessage = {
+                ...message.payload.message,
+                sender: message.payload.user,
+              };
+              const exists = oldData.some((msg) => msg.id === newMessage.id);
+              return exists ? oldData : [...oldData, newMessage];
+            }
+          );
+        }
+      }
+    };
+
+    const unsubscribe = subscribe(handleWebSocketMessage);
+    return () => unsubscribe();
+  }, [conversation?.conversation?.id, subscribe, queryClient]);
+
   if (!currentUser || !otherUserId) return null;
 
   if (isLoadingConversation) {
@@ -100,6 +129,11 @@ export default function DirectMessagePage() {
   }
 
   const { participant } = conversation;
+
+  // Sort messages by creation date (oldest first)
+  const sortedMessages = [...messages].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
 
   return (
     <div className="flex flex-col h-screen">
@@ -124,12 +158,12 @@ export default function DirectMessagePage() {
         <div className="space-y-4">
           {isLoadingMessages ? (
             <div className="text-center text-muted-foreground">Loading messages...</div>
-          ) : messages.length === 0 ? (
+          ) : sortedMessages.length === 0 ? (
             <div className="text-center text-muted-foreground">
               No messages yet. Start the conversation!
             </div>
           ) : (
-            messages.map((msg) => (
+            sortedMessages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex gap-2 ${
