@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import type { User } from "@db/schema";
 
 export function useUser() {
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: user, isLoading, error } = useQuery({
     queryKey: ['user'],
@@ -76,10 +78,13 @@ export function useUser() {
         throw new Error('Logout failed');
       }
 
-      // Only clear once we know logout succeeded
+      // Clear once logout is confirmed
       queryClient.clear(); 
       queryClient.setQueryData(['user'], null);
       queryClient.resetQueries();
+
+      // Redirect to login page
+      setLocation('/');
 
       return true;
     } catch (error) {
