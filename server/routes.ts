@@ -262,7 +262,7 @@ export function registerRoutes(app: Express): Server {
                 .from(directMessageParticipants)
                 .where(
                   and(
-                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
                     eq(directMessageParticipants.userId, otherUserId)
                   )
                 )
@@ -312,7 +312,7 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
-      // First get or create conversation
+      // First get or create the conversation between these users
       let [conversation] = await db
         .select({
           id: directMessageConversations.id,
@@ -330,7 +330,7 @@ export function registerRoutes(app: Express): Server {
                 .from(directMessageParticipants)
                 .where(
                   and(
-                    eq(directMessageParticipants.conversationId, directMessageConversations.id),
+                    eq(directMessageParticipants.conversationId, directMessageParticipants.conversationId),
                     eq(directMessageParticipants.userId, otherUserId)
                   )
                 )
