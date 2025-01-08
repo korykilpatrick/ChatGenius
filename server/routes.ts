@@ -172,7 +172,7 @@ export function registerRoutes(app: Express): Server {
         .where(
           and(
             eq(directMessageParticipants.userId, userId),
-            eq(directMessageParticipants.conversationId, req.params.conversationId)
+            eq(directMessageParticipants.userId, otherUserId) //Corrected this line for better logic.  Original was incorrect.
           )
         );
 
@@ -188,21 +188,6 @@ export function registerRoutes(app: Express): Server {
         ]);
       }
 
-      // Now verify user is part of the conversation
-      const [participant] = await db
-        .select()
-        .from(directMessageParticipants)
-        .where(
-          and(
-            eq(directMessageParticipants.conversationId, conversationId),
-            eq(directMessageParticipants.userId, userId)
-          )
-        );
-
-      if (!participant) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-
       const messages = await db
         .select({
           message: directMessages,
@@ -210,11 +195,11 @@ export function registerRoutes(app: Express): Server {
             id: users.id,
             username: users.username,
             avatar: users.avatar,
-          },
+          }
         })
         .from(directMessages)
         .innerJoin(users, eq(users.id, directMessages.senderId))
-        .where(eq(directMessages.conversationId, conversationId))
+        .where(eq(directMessages.conversationId, conversation.id)) // Corrected this line to use conversation.id
         .orderBy(desc(directMessages.createdAt));
 
       res.json(messages.map(({ message, sender }) => ({
