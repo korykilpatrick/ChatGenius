@@ -11,6 +11,7 @@ import path from "path";
 import fs from "fs";
 import mime from "mime-types";
 import express from 'express';
+import { WebSocket } from 'ws';
 
 // Configure multer for file uploads
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
@@ -62,7 +63,7 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   // Setup WebSocket after HTTP server
-  setupWebSocket(httpServer);
+  const wss = setupWebSocket(httpServer);
 
   // Protect all API routes except auth routes
   app.use("/api", (req, res, next) => {
@@ -349,6 +350,19 @@ export function registerRoutes(app: Express): Server {
     const [channel] = await db.insert(channels)
       .values({ name, description, isPrivate: isPrivate || false })
       .returning();
+
+    // Broadcast the new channel to all connected clients
+    const response = {
+      type: "channel_created",
+      payload: channel,
+    };
+
+    // Broadcast to all connected clients
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(response));
+      }
+    });
 
     res.json(channel);
   });
