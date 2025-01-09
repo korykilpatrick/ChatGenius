@@ -67,6 +67,9 @@ export const directMessages = pgTable("direct_messages", {
   senderId: integer("sender_id")
     .references(() => users.id, { onDelete: 'cascade' })
     .notNull(),
+  parentId: integer("parent_id").references(() => directMessages.id),
+  reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
+  files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -126,7 +129,7 @@ export const directMessageParticipantsRelations = relations(directMessagePartici
   }),
 }));
 
-export const directMessagesRelations = relations(directMessages, ({ one }) => ({
+export const directMessagesRelations = relations(directMessages, ({ one, many }) => ({
   conversation: one(directMessageConversations, {
     fields: [directMessages.conversationId],
     references: [directMessageConversations.id],
@@ -134,6 +137,11 @@ export const directMessagesRelations = relations(directMessages, ({ one }) => ({
   sender: one(users, {
     fields: [directMessages.senderId],
     references: [users.id],
+  }),
+  replies: many(directMessages, { relationName: "replies" }),
+  parent: one(directMessages, {
+    fields: [directMessages.parentId],
+    references: [directMessages.id],
   }),
 }));
 
@@ -158,6 +166,7 @@ export interface Message extends BaseMessage {
 
 export interface DirectMessageWithSender extends DirectMessage {
   sender: Omit<User, 'password'>;
+  replies?: DirectMessageWithSender[];
 }
 
 // Re-export types without password for security
