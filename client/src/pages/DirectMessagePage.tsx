@@ -10,6 +10,9 @@ import { format } from "date-fns";
 import MessageInput from "@/components/chat/MessageInput";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Smile } from "lucide-react"; // Assuming this is where Smile icon is imported from
+
 
 interface Message {
   id: number;
@@ -37,13 +40,17 @@ interface Conversation {
   };
 }
 
+// Assuming REACTIONS is defined elsewhere, e.g., in a constants file
+const REACTIONS = ["👍", "👎", "😂", "❤️", "🤔"];
+
+
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const { subscribe } = useWebSocket();
+  const { subscribe, sendMessage } = useWebSocket(); //sendMessage added here
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -219,6 +226,36 @@ export default function DirectMessagePage() {
                     </span>
                   </div>
                   <p className="text-sm break-words">{msg.content}</p>
+                  <div className="opacity-0 group-hover:opacity-100 mt-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Smile className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-2" align="start">
+                        <div className="grid grid-cols-4 gap-2">
+                          {REACTIONS.map((reaction) => (
+                            <Button
+                              key={reaction}
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() =>
+                                sendMessage("message_reaction", {
+                                  messageId: msg.id,
+                                  reaction,
+                                  userId: currentUser.id,
+                                  isDM: true,
+                                })
+                              }
+                            >
+                              {reaction}
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   {msg.files && msg.files.length > 0 && (
                     <div className="space-y-2">
                       {msg.files.map((file, index) => (
