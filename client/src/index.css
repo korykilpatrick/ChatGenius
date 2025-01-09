@@ -110,9 +110,11 @@
   /* Message Components */
   .message-bubble {
     @apply p-3 rounded-lg max-w-[85%] break-words
-           transition-colors duration-200
-           hover:bg-muted/50
-           dark:hover:bg-zinc-800/50;
+           transition-colors duration-200;
+  }
+
+  .message-bubble-hover {
+    @apply hover:bg-muted/80 dark:hover:bg-muted/20;
   }
 
   .message-input {

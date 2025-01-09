@@ -32,7 +32,7 @@ export default function MessageList({
 
   // Fetch messages based on channel or conversation
   const { data: messages = [] } = useQuery<Message[]>({
-    queryKey: channelId 
+    queryKey: channelId
       ? [`/api/channels/${channelId}/messages`]
       : [`/api/dm/conversations/${conversationId}/messages`],
     enabled: !!channelId || !!conversationId,
@@ -54,13 +54,13 @@ export default function MessageList({
   const handleWebSocketMessage = useCallback(
     (message: any) => {
       if (message.type === "message_created") {
-        const isRelevantMessage = channelId 
+        const isRelevantMessage = channelId
           ? message.payload.message.channelId === channelId
           : message.payload.message.conversationId === conversationId;
 
         if (isRelevantMessage && !message.payload.message.parentId) {
           queryClient.setQueryData(
-            channelId 
+            channelId
               ? [`/api/channels/${channelId}/messages`]
               : [`/api/dm/conversations/${conversationId}/messages`],
             (oldData: Message[] = []) => {
@@ -98,7 +98,7 @@ export default function MessageList({
   }, [channelId, conversationId, subscribe, handleWebSocketMessage]);
 
   // Sort messages by creation date (oldest first)
-  const sortedMessages = [...messages].sort((a, b) => 
+  const sortedMessages = [...messages].sort((a, b) =>
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
@@ -149,6 +149,9 @@ export default function MessageList({
     );
   };
 
+  // Added currentUser for demonstration; replace with actual user data retrieval
+  const currentUser = { id: 1 }; // Replace with actual user ID retrieval
+
   return (
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -163,44 +166,49 @@ export default function MessageList({
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">
-                      {message.user.username}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(message.createdAt), "p")}
-                    </span>
-                  </div>
-                  <p className="mt-1">{message.content}</p>
-                  {message.files && message.files.length > 0 && (
-                    <div className="space-y-2">
-                      {message.files.map((file, index) => (
-                        <div key={index}>
-                          {renderFileAttachment(file)}
-                        </div>
-                      ))}
+                  <div
+                    className={`message-bubble message-bubble-hover ${
+                      message.user.id === currentUser.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs opacity-70">
+                        {format(new Date(message.createdAt), "p")}
+                      </span>
                     </div>
-                  )}
-                  {message.reactions &&
-                    Object.entries(
-                      message.reactions as Record<string, number[]>,
-                    ).length > 0 && (
-                      <div className="flex gap-1 mt-2">
-                        {Object.entries(
-                          message.reactions as Record<string, number[]>,
-                        ).map(([reaction, userIds]) => (
-                          <Button
-                            key={reaction}
-                            variant="secondary"
-                            size="sm"
-                            className="h-6 text-xs"
-                            onClick={() => handleReaction(message.id, reaction)}
-                          >
-                            {reaction} {userIds.length}
-                          </Button>
+                    <p className="text-sm break-words">{message.content}</p>
+                    {message.files && message.files.length > 0 && (
+                      <div className="space-y-2">
+                        {message.files.map((file, index) => (
+                          <div key={index}>
+                            {renderFileAttachment(file)}
+                          </div>
                         ))}
                       </div>
                     )}
+                    {message.reactions &&
+                      Object.entries(
+                        message.reactions as Record<string, number[]>,
+                      ).length > 0 && (
+                        <div className="flex gap-1 mt-2">
+                          {Object.entries(
+                            message.reactions as Record<string, number[]>,
+                          ).map(([reaction, userIds]) => (
+                            <Button
+                              key={reaction}
+                              variant="secondary"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={() => handleReaction(message.id, reaction)}
+                            >
+                              {reaction} {userIds.length}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                  </div>
                 </div>
                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
                   <Popover>

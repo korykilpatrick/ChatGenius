@@ -237,7 +237,7 @@ export default function DirectMessagePage() {
                   </Avatar>
                 )}
                 <div
-                  className={`relative max-w-[70%] ${
+                  className={`relative message-bubble message-bubble-hover ${
                     msg.sender.id === currentUser.id
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
