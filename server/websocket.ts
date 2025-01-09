@@ -57,7 +57,7 @@ export function setupWebSocket(server: Server) {
           extWs.userId = message.payload.userId;
           console.log(`[WebSocket] User ${extWs.userId} connected`);
         } else if (message.type === "new_direct_message") {
-          const { conversationId, content, senderId } = message.payload;
+          const { conversationId, content, senderId, files } = message.payload;
           if (!conversationId || !content || !senderId) {
             console.error(
               "[WebSocket] Invalid message payload:",
@@ -191,10 +191,11 @@ export function setupWebSocket(server: Server) {
             console.error("[WebSocket] Failed to update reaction:", error);
           }
         } else if (message.type === "new_message") {
-          const { channelId, content, userId, parentId } = message.payload;
+          const { channelId, content, userId, parentId, files } = message.payload;
           if (!channelId || !content || !userId) return;
 
           try {
+            console.log("[WebSocket] Creating new message with files:", files);
             // Insert the message
             const [newMessage] = await db
               .insert(messages)
@@ -203,6 +204,7 @@ export function setupWebSocket(server: Server) {
                 content,
                 userId,
                 parentId: parentId || null,
+                files: files || [], // Include files array
               })
               .returning();
 
@@ -223,7 +225,10 @@ export function setupWebSocket(server: Server) {
                 const response = {
                   type: "message_created",
                   payload: {
-                    message: newMessage,
+                    message: {
+                      ...newMessage,
+                      files: files || [], // Include files in the response
+                    },
                     user: userData,
                   },
                 };
