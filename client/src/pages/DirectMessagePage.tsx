@@ -193,6 +193,14 @@ export default function DirectMessagePage() {
     );
   };
 
+  const messageClassName = (isCurrentUser: boolean) =>
+    `relative message-bubble message-bubble-hover ${
+      isCurrentUser
+        ? "hover:bg-primary/10"
+        : ""
+    }`;
+
+
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
@@ -237,11 +245,7 @@ export default function DirectMessagePage() {
                   </Avatar>
                 )}
                 <div
-                  className={`relative message-bubble message-bubble-hover ${
-                    msg.sender.id === currentUser.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  } rounded-lg p-3`}
+                  className={messageClassName(msg.sender.id === currentUser.id)}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs opacity-70">
