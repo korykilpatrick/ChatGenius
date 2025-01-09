@@ -29,6 +29,8 @@ export default function MessageList({
 }: MessageListProps) {
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const isInitialLoadRef = useRef(true);
 
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: channelId
@@ -40,22 +42,26 @@ export default function MessageList({
   const { subscribe, sendMessage } = useWebSocket();
 
   const scrollToBottom = useCallback(() => {
-    if (scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
+    // Get the scroll viewport element
+    const scrollViewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement;
+    if (scrollViewport) {
+      // Use RAF to ensure DOM is ready
+      requestAnimationFrame(() => {
+        scrollViewport.scrollTop = scrollViewport.scrollHeight;
+        console.log('Scrolled to bottom, height:', scrollViewport.scrollHeight);
+      });
     }
   }, []);
 
   // Initial scroll to bottom when component mounts and messages are loaded
   useEffect(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
-
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    scrollToBottom();
+    if (isInitialLoadRef.current && messages.length > 0) {
+      // Add a small delay to ensure content is rendered
+      setTimeout(() => {
+        scrollToBottom();
+        isInitialLoadRef.current = false;
+      }, 100);
+    }
   }, [messages, scrollToBottom]);
 
   const handleWebSocketMessage = useCallback(
@@ -77,7 +83,8 @@ export default function MessageList({
               };
               const exists = oldData.some((msg) => msg.id === newMessage.id);
               if (!exists) {
-                setTimeout(scrollToBottom, 100); // Scroll after message is rendered
+                // Schedule scroll after state update and render
+                setTimeout(scrollToBottom, 100);
                 return [...oldData, newMessage];
               }
               return oldData;
@@ -106,10 +113,6 @@ export default function MessageList({
     const unsubscribe = subscribe(handleWebSocketMessage);
     return () => unsubscribe();
   }, [channelId, conversationId, subscribe, handleWebSocketMessage]);
-
-  const sortedMessages = [...messages].sort((a, b) =>
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string) => {
@@ -157,6 +160,10 @@ export default function MessageList({
     );
   };
 
+  const sortedMessages = [...messages].sort((a, b) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
   return (
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -164,7 +171,7 @@ export default function MessageList({
           {sortedMessages.map((message) => (
             <div key={message.id} className="group message-row message-row-hover">
               <div className="flex items-start gap-3">
-                <Avatar>
+                <Avatar className="h-8 w-8">
                   <AvatarImage src={message.user.avatar || undefined} />
                   <AvatarFallback>
                     {message.user.username[0].toUpperCase()}
@@ -173,6 +180,7 @@ export default function MessageList({
                 <div className="flex-1">
                   <div className="message-bubble">
                     <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold">{message.user.username}</span>
                       <span className="text-xs opacity-70">
                         {format(new Date(message.createdAt), 'p')}
                       </span>
@@ -189,18 +197,20 @@ export default function MessageList({
                     )}
                     {message.reactions &&
                       Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
-                        <div className="flex gap-1 mt-2">
+                        <div className="flex flex-wrap gap-1 mt-2">
                           {Object.entries(message.reactions as Record<string, number[]>).map(
                             ([reaction, userIds]) => (
-                              <Button
-                                key={reaction}
-                                variant="secondary"
-                                size="sm"
-                                className="h-6 text-xs"
-                                onClick={() => handleReaction(message.id, reaction)}
-                              >
-                                {reaction} {userIds.length}
-                              </Button>
+                              userIds.length > 0 && (
+                                <Button
+                                  key={reaction}
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-6 text-xs"
+                                  onClick={() => handleReaction(message.id, reaction)}
+                                >
+                                  {reaction} {userIds.length}
+                                </Button>
+                              )
                             )
                           )}
                         </div>
