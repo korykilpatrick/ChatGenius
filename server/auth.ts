@@ -7,6 +7,8 @@ import bcrypt from "bcryptjs";
 import session from "express-session";
 import multer from "multer";
 import path from "path";
+import crypto from 'crypto'; // Added import for crypto
+import MemoryStore from "memorystore";
 
 // Configure multer for handling file uploads
 const storage = multer.diskStorage({
@@ -68,6 +70,9 @@ declare global {
   }
 }
 
+// Create MemoryStore instance
+const MemoryStoreSession = MemoryStore(session);
+
 export async function setupAuth(app: Express) {
   // Ensure uploads directory exists
   const fs = await import('fs');
@@ -76,15 +81,29 @@ export async function setupAuth(app: Express) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
 
+  // Generate a strong session secret or use environment variable
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+
+  // Configure session middleware with enhanced security
   app.use(
     session({
-      secret: process.env.SESSION_SECRET || "dev_secret",
+      secret: sessionSecret,
+      store: new MemoryStoreSession({
+        checkPeriod: 86400000, // Prune expired entries every 24h
+      }),
+      name: 'session_id', // Custom cookie name
       resave: false,
       saveUninitialized: false,
+      rolling: true, // Refresh cookie on each response
       cookie: {
         secure: process.env.NODE_ENV === "production",
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
+        httpOnly: true,
+        sameSite: 'strict',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/',
+        domain: process.env.NODE_ENV === "production" ? process.env.DOMAIN : undefined,
       },
+      proxy: process.env.NODE_ENV === "production", // Trust proxy in production
     }),
   );
 
@@ -94,7 +113,6 @@ export async function setupAuth(app: Express) {
     next();
   });
 
-  // Serve uploaded files
   app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'uploads/avatars')));
 
   app.post("/api/register", async (req, res) => {

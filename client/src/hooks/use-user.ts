@@ -11,12 +11,17 @@ export function useUser() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["user"],
+    queryKey: ["/api/user"],
     queryFn: async () => {
       try {
         const response = await fetch("/api/user", {
           credentials: "include",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
         });
+
         if (!response.ok) {
           if (response.status === 401) {
             return null;
@@ -36,7 +41,10 @@ export function useUser() {
   const login = async (data: { username: string; password: string }) => {
     const response = await fetch("/api/login", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
       credentials: "include",
       body: JSON.stringify(data),
     });
@@ -47,35 +55,19 @@ export function useUser() {
     }
 
     const result = await response.json();
-    queryClient.setQueryData(["user"], result.user);
+    queryClient.setQueryData(["/api/user"], result.user);
     // Invalidate users list to reflect status changes
     queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     return result;
   };
 
-  const register = async (data: { username: string; password: string }) => {
-    const response = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message);
-    }
-
-    const result = await response.json();
-    queryClient.setQueryData(["user"], result.user);
-    return result;
-  };
-
   const logout = async () => {
     try {
-      // First, make the logout request
       const response = await fetch("/api/logout", {
         method: "POST",
+        headers: {
+          "Accept": "application/json",
+        },
         credentials: "include",
       });
 
@@ -83,14 +75,12 @@ export function useUser() {
         throw new Error("Logout failed");
       }
 
-      // After successful logout:
-      // 1. Clear React Query cache
+      // Clear React Query cache
       queryClient.clear();
-      queryClient.setQueryData(["user"], null);
+      queryClient.setQueryData(["/api/user"], null);
       queryClient.resetQueries();
 
-      // 2. Force navigation to login page
-      // setLocation('/');
+      // Force page reload to clear any remaining state
       window.location.href = "/login";
 
       return true;
@@ -100,5 +90,5 @@ export function useUser() {
     }
   };
 
-  return { user, isLoading, error, login, logout, register };
+  return { user, isLoading, error, login, logout };
 }
