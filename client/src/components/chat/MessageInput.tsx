@@ -85,7 +85,6 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
         content: content.trim() || " ", // Send space if no content
         conversationId,
         senderId: user.id,
-        parentId, // Include parentId for thread replies
         files: files.map(f => f.url)
       });
     }

@@ -7,7 +7,7 @@ import { X, Smile } from "lucide-react";
 import MessageInput from "./MessageInput";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
-import type { Message, DirectMessageWithSender } from "@db/schema";
+import type { Message } from "@db/schema";
 import { useUser } from "@/hooks/use-user";
 import {
   Popover,
@@ -18,39 +18,26 @@ import {
 const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
 type ThreadViewProps = {
-  message: Message | DirectMessageWithSender;
+  message: Message;
   onClose: () => void;
 };
-
-type MessageType = Message | DirectMessageWithSender;
 
 export default function ThreadView({ message, onClose }: ThreadViewProps) {
   const queryClient = useQueryClient();
   const { subscribe, sendMessage } = useWebSocket();
   const { user } = useUser();
 
-  // Determine if this is a DM thread or channel thread
-  const isDM = "conversationId" in message;
-  const threadQueryKey = isDM
-    ? [`/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`]
-    : [`/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`];
-
   useEffect(() => {
-    console.log("Setting up thread view subscription for message:", message.id);
     const unsubscribe = subscribe((wsMessage) => {
-      console.log("Received WebSocket message in thread:", wsMessage);
-
       if (wsMessage.type === "message_created" && 
           wsMessage.payload.message.parentId === message.id) {
-        console.log("Updating thread view with new reply:", wsMessage.payload);
-        // Update the thread replies view
+        // Only update the thread replies view, let MessageList handle the parent's reply count
         queryClient.setQueryData(
-          threadQueryKey,
-          (oldData: MessageType[] = []) => {
+          [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+          (oldData: Message[] = []) => {
             const newReply = {
               ...wsMessage.payload.message,
               user: wsMessage.payload.user,
-              sender: wsMessage.payload.user,
             };
             const exists = oldData.some((msg) => msg.id === newReply.id);
             return exists ? oldData : [...oldData, newReply];
@@ -60,8 +47,8 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
         const { messageId, reactions } = wsMessage.payload;
         // Update reactions for replies in the thread
         queryClient.setQueryData(
-          threadQueryKey,
-          (oldData: MessageType[] = []) => {
+          [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+          (oldData: Message[] = []) => {
             return oldData.map((reply) =>
               reply.id === messageId ? { ...reply, reactions } : reply
             );
@@ -71,25 +58,19 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
     });
 
     return () => unsubscribe();
-  }, [message.id, threadQueryKey, queryClient, subscribe]);
+  }, [message.id, message.channelId, queryClient, subscribe]);
 
-  const { data: replies = [] } = useQuery<MessageType[]>({
-    queryKey: threadQueryKey,
+  const { data: replies = [] } = useQuery<Message[]>({
+    queryKey: [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
   });
-
-  console.log("Current thread replies:", replies);
 
   const handleReaction = (messageId: number, reaction: string) => {
     sendMessage("message_reaction", {
       messageId,
       reaction,
       userId: user?.id,
-      isDM,
     });
   };
-
-  // Get the user/sender info based on message type
-  const messageUser = "user" in message ? message.user : message.sender;
 
   return (
     <div className="h-full flex flex-col border-l">
@@ -103,14 +84,14 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
         <div className="space-y-4">
           <div className="flex items-start gap-3">
             <Avatar>
-              <AvatarImage src={messageUser.avatar || undefined} />
+              <AvatarImage src={message.user.avatar || undefined} />
               <AvatarFallback>
-                {messageUser.username[0].toUpperCase()}
+                {message.user.username[0].toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-semibold">{messageUser.username}</span>
+                <span className="font-semibold">{message.user.username}</span>
                 <span className="text-xs text-muted-foreground">
                   {format(new Date(message.createdAt), 'p')}
                 </span>
@@ -162,14 +143,14 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
           {replies.map((reply) => (
             <div key={reply.id} className="group flex items-start gap-3 ml-8">
               <Avatar>
-                <AvatarImage src={("user" in reply ? reply.user : reply.sender).avatar || undefined} />
+                <AvatarImage src={reply.user.avatar || undefined} />
                 <AvatarFallback>
-                  {("user" in reply ? reply.user : reply.sender).username[0].toUpperCase()}
+                  {reply.user.username[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">{("user" in reply ? reply.user : reply.sender).username}</span>
+                  <span className="font-semibold">{reply.user.username}</span>
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(reply.createdAt), 'p')}
                   </span>
@@ -220,11 +201,7 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
           ))}
         </div>
       </ScrollArea>
-      {isDM ? (
-        <MessageInput conversationId={message.conversationId} parentId={message.id} />
-      ) : (
-        <MessageInput channelId={(message as Message).channelId} parentId={message.id} />
-      )}
+      <MessageInput channelId={message.channelId} parentId={message.id} />
     </div>
   );
 }

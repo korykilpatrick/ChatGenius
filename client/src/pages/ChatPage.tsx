@@ -13,11 +13,11 @@ import { DirectMessagesList } from "@/components/DirectMessagesList";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Message, DirectMessageWithSender } from "@db/schema";
+import type { Message } from "@db/schema";
 
 export default function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<number | null>(1);
-  const [selectedThread, setSelectedThread] = useState<Message | DirectMessageWithSender | null>(null);
+  const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const { user } = useUser();
   const { isConnected } = useWebSocket();
   const [location] = useLocation();

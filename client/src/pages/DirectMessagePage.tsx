@@ -1,13 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/use-user";
+import { useWebSocket } from "@/hooks/use-websocket";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
-import ThreadView from "@/components/chat/ThreadView";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import type { DirectMessageWithSender } from "@db/schema";
 
 interface DirectMessageProps {
   conversation: {
@@ -25,8 +23,8 @@ interface DirectMessageProps {
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { user: currentUser } = useUser();
+  const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const [selectedThread, setSelectedThread] = useState<DirectMessageWithSender | null>(null);
 
   const { data: conversation } = useQuery<DirectMessageProps>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -56,33 +54,10 @@ export default function DirectMessagePage() {
         </Link>
       </header>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={75} minSize={50}>
-          <div className="h-full flex flex-col">
-            <div className="flex-1 min-h-0">
-              <MessageList 
-                conversationId={conversation.conversation.id} 
-                onThreadSelect={setSelectedThread}
-              />
-            </div>
-            <div className="flex-shrink-0">
-              <MessageInput conversationId={conversation.conversation.id} />
-            </div>
-          </div>
-        </ResizablePanel>
-
-        {selectedThread && (
-          <>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={25} minSize={20}>
-              <ThreadView 
-                message={selectedThread} 
-                onClose={() => setSelectedThread(null)} 
-              />
-            </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+      <div className="flex-1 flex flex-col min-h-0">
+        <MessageList conversationId={conversation.conversation.id} onThreadSelect={() => {}} />
+        <MessageInput conversationId={conversation.conversation.id} />
+      </div>
     </div>
   );
 }
