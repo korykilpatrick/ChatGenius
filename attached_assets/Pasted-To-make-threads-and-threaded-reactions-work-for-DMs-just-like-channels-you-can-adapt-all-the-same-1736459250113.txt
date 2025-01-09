@@ -1,0 +1,238 @@
+To make threads (and threaded reactions) work for DMs just like channels, you can adapt all the same logic you’re using for channel threads to direct messages. The short version is:
+
+Use the existing parentId column in directMessages to store replies.
+Add routes and queries specifically for DM replies.
+Send “new_direct_message” WebSocket events with parentId if it’s a reply.
+Handle reactions in your "message_reaction" event by setting isDM: true and checking parentId in directMessages.
+Create/Adapt a “ThreadView” component for DMs.
+Below are the key steps in detail.
+
+1. Database & Models
+You already have a parentId in directMessages. If parentId is null, it’s a top-level DM; if it’s non-null, it’s a reply to another message. You don’t need any schema changes for basic threading.
+
+2. REST Endpoints
+Right now, you have:
+
+ruby
+Copy code
+GET /api/dm/conversations/:conversationId/messages
+which returns all direct messages for a conversation. For threads, you need a route to fetch replies of a specific direct message. You can either:
+
+Add a route like:
+
+ts
+Copy code
+// GET /api/dm/conversations/:conversationId/messages/:messageId/replies
+app.get("/api/dm/conversations/:conversationId/messages/:messageId/replies", async (req, res) => {
+  const conversationId = parseInt(req.params.conversationId);
+  const messageId = parseInt(req.params.messageId);
+  const userId = req.user!.id;
+
+  // 1) confirm user is in that conversation
+  const participant = await db.select().from(directMessageParticipants)
+    .where(
+      and(
+        eq(directMessageParticipants.conversationId, conversationId),
+        eq(directMessageParticipants.userId, userId),
+      )
+    ).limit(1);
+
+  if (participant.length === 0) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  // 2) fetch all directMessages where `parentId = messageId`
+  const replies = await db
+    .select({
+      id: directMessages.id,
+      content: directMessages.content,
+      createdAt: directMessages.createdAt,
+      parentId: directMessages.parentId,
+      reactions: directMessages.reactions,
+      senderId: directMessages.senderId,
+      sender: {
+        id: users.id,
+        username: users.username,
+        avatar: users.avatar,
+      },
+    })
+    .from(directMessages)
+    .innerJoin(users, eq(users.id, directMessages.senderId))
+    .where(
+      and(
+        eq(directMessages.conversationId, conversationId),
+        eq(directMessages.parentId, messageId),
+      )
+    )
+    .orderBy(asc(directMessages.createdAt));
+
+  res.json(replies);
+});
+Reuse the same route if you prefer returning all messages in one pass, but typically you’d have a separate “show me all replies for a given message” route.
+
+3. Sending Replies
+Your DM logic (client side) for sending messages is something like:
+
+ts
+Copy code
+sendMessage("new_direct_message", {
+  conversationId,
+  content,
+  senderId: user.id,
+  files,
+});
+For a reply, just include parentId:
+
+ts
+Copy code
+sendMessage("new_direct_message", {
+  conversationId,
+  content,
+  senderId: user.id,
+  parentId,
+  files,
+});
+The server’s WebSocket code for "new_direct_message":
+
+ts
+Copy code
+} else if (message.type === "new_direct_message") {
+  const { conversationId, content, senderId, files, parentId } = message.payload;
+  ...
+  // Insert into `directMessages`, including parentId
+  const [newMessage] = await db.insert(directMessages)
+    .values({
+      conversationId,
+      content,
+      senderId,
+      files: files || [],
+      parentId: parentId || null, // for replies
+    })
+    .returning();
+  ...
+}
+That’s it—now the “reply” is just a directMessages row with a parentId.
+
+4. Displaying DM Threads
+In channels, you have a ThreadView that queries
+
+ruby
+Copy code
+GET /api/channels/:channelId/messages/:messageId/replies
+You need the DM equivalent:
+
+ruby
+Copy code
+GET /api/dm/conversations/:conversationId/messages/:messageId/replies
+Then create a DMThreadView component (or adapt your existing ThreadView to handle both channel threads and DM threads). The big differences are:
+
+Fetch from /api/dm/... instead of /api/channels/....
+Check that replies is an array of directMessages.
+Something like:
+
+tsx
+Copy code
+function DMThreadView({ message, onClose }) {
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
+
+  // message.conversationId is known, message.id is the parent
+  const { data: replies = [] } = useQuery<DirectMessageWithSender[]>({
+    queryKey: [`/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`],
+  });
+
+  useEffect(() => {
+    // Listen for new direct_message events
+    const unsubscribe = subscribe((wsMsg) => {
+      if (
+        wsMsg.type === "message_created"
+        && wsMsg.payload.message.conversationId === message.conversationId
+        && wsMsg.payload.message.parentId === message.id
+      ) {
+        // It's a new reply to this thread
+        queryClient.setQueryData(
+          [`/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`],
+          (old: DirectMessageWithSender[] = []) => {
+            const newReply = {
+              ...wsMsg.payload.message,
+              sender: wsMsg.payload.user,
+            };
+            return [...old, newReply];
+          }
+        );
+      }
+    });
+
+    return () => unsubscribe();
+  }, [message, subscribe, queryClient]);
+
+  ...
+  // Render parent message + replies
+}
+5. Reactions in DM Threads
+You already handle message_reaction with a flag isDM = true for direct messages. Do the same for replies. As long as the reply is in directMessages, your server’s reaction logic is the same code path (the only difference is it checks isDM to update the directMessages table instead of messages). For instance:
+
+Client (in DMThreadView or a MessageList adapted for DMs):
+
+ts
+Copy code
+function handleReaction(messageId: number, reaction: string) {
+  sendMessage("message_reaction", {
+    messageId,
+    reaction,
+    isDM: true,
+    userId: user.id,
+  });
+}
+Server (already in your code):
+
+ts
+Copy code
+if (isDM) {
+  const [existingMessage] = await db
+    .select()
+    .from(directMessages)
+    .where(eq(directMessages.id, messageId))
+    .limit(1);
+
+  if (existingMessage) {
+    const reactions = existingMessage.reactions || {};
+    ...
+    const [updatedMessage] = await db
+      .update(directMessages)
+      .set({ reactions })
+      .where(eq(directMessages.id, messageId))
+      .returning();
+    
+    // broadcast to conversation participants
+  }
+}
+That automatically applies to both top-level DMs and replies, because they’re still rows in directMessages.
+
+Finally, on the client side, you do:
+
+ts
+Copy code
+if (wsMsg.type === "message_reaction_updated") {
+  // If it's for a DM, we update the directMessages query
+  if (somehow we know it's a DM => isDM: true in the original event, or the message is found in the DM queries) {
+    // check if the message is in the thread or top-level
+    queryClient.setQueryData(
+      [`/api/dm/conversations/${conversationId}/messages`],
+      ...
+    );
+    // also the thread queries:
+    queryClient.setQueryData(
+      [`/api/dm/conversations/${conversationId}/messages/${parentId}/replies`],
+      ...
+    );
+  }
+}
+One small note: Because your server’s message_reaction_updated broadcast doesn’t currently indicate which conversation or user set, you may need to pass conversationId or something in the payload so you know how to update the correct query. Or do a “catch-all” approach by searching all queries.
+
+6. Summary
+Use parentId in directMessages for DM threads.
+Add a route like GET /api/dm/conversations/:conversationId/messages/:messageId/replies for fetching replies.
+Send “new_direct_message” with parentId for replies.
+Create a DMThreadView (or unify with your existing ThreadView if you want) that queries the new /replies route.
+Use the same reaction logic (message_reaction with isDM = true) for both top-level DMs and DM replies.
