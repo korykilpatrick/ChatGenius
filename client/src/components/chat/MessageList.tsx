@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MessageSquare, Smile, Download } from "lucide-react";
 import MessageInput from "@/components/chat/MessageInput";
 import { format } from "date-fns";
-import type { Message } from "@db/schema";
+import type { Message, DirectMessageWithSender } from "@db/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
 import {
   Popover,
@@ -22,6 +22,8 @@ type MessageListProps = {
 
 const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
+type MessageType = Message | DirectMessageWithSender;
+
 export default function MessageList({
   channelId,
   conversationId,
@@ -31,7 +33,7 @@ export default function MessageList({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isInitialLoadRef = useRef(true);
 
-  const { data: messages = [] } = useQuery<Message[]>({
+  const { data: messages = [] } = useQuery<MessageType[]>({
     queryKey: channelId
       ? [`/api/channels/${channelId}/messages`]
       : [`/api/dm/conversations/${conversationId}/messages`],
@@ -75,7 +77,7 @@ export default function MessageList({
             channelId
               ? [`/api/channels/${channelId}/messages`]
               : [`/api/dm/conversations/${conversationId}/messages`],
-            (oldData: Message[] = []) => {
+            (oldData: MessageType[] = []) => {
               const newMessage = {
                 ...message.payload.message,
                 user: message.payload.user,
@@ -97,7 +99,7 @@ export default function MessageList({
           channelId
             ? [`/api/channels/${channelId}/messages`]
             : [`/api/dm/conversations/${conversationId}/messages`],
-          (oldData: Message[] = []) => {
+          (oldData: MessageType[] = []) => {
             return oldData.map((msg) =>
               msg.id === messageId ? { ...msg, reactions } : msg
             );
@@ -170,7 +172,7 @@ export default function MessageList({
         <div className="space-y-4">
           {sortedMessages.map((message) => {
             // Handle both channel messages (user) and DM messages (sender)
-            const messageUser = message.user || message.sender;
+            const messageUser = 'user' in message ? message.user : message.sender;
             if (!messageUser) return null;
 
             return (
@@ -247,18 +249,18 @@ export default function MessageList({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => onThreadSelect(message)}
+                        onClick={() => onThreadSelect(message as Message)}
                       >
                         <MessageSquare className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 </div>
-                {message.replies && message.replies.length > 0 && channelId && (
+                {channelId && 'replies' in message && message.replies && message.replies.length > 0 && (
                   <Button
                     variant="ghost"
                     className="ml-12 mt-2 text-xs"
-                    onClick={() => onThreadSelect(message)}
+                    onClick={() => onThreadSelect(message as Message)}
                   >
                     {message.replies.length} replies
                   </Button>
