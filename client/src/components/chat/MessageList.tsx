@@ -166,107 +166,109 @@ export default function MessageList({
   );
 
   return (
-    <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-      <div className="space-y-4">
-        {sortedMessages.map((message) => {
-          // Handle both channel messages (user) and DM messages (sender)
-          const messageUser = 'user' in message ? message.user : message.sender;
-          if (!messageUser) return null;
+    <div className="h-full flex flex-col">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+        <div className="space-y-4">
+          {sortedMessages.map((message) => {
+            // Handle both channel messages (user) and DM messages (sender)
+            const messageUser = 'user' in message ? message.user : message.sender;
+            if (!messageUser) return null;
 
-          return (
-            <div key={message.id} className="group message-row message-row-hover">
-              <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8 flex-shrink-0">
-                  <AvatarImage src={messageUser.avatar || undefined} />
-                  <AvatarFallback>
-                    {messageUser.username[0].toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="message-bubble">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{messageUser.username}</span>
-                      <span className="text-xs opacity-70">
-                        {format(new Date(message.createdAt), 'p')}
-                      </span>
-                    </div>
-                    <p className="text-sm break-words">{message.content}</p>
-                    {message.files && message.files.length > 0 && (
-                      <div className="space-y-2">
-                        {message.files.map((file: string, index: number) => (
-                          <div key={index}>{renderFileAttachment(file)}</div>
-                        ))}
+            return (
+              <div key={message.id} className="group message-row message-row-hover">
+                <div className="flex items-start gap-3">
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarImage src={messageUser.avatar || undefined} />
+                    <AvatarFallback>
+                      {messageUser.username[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="message-bubble">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">{messageUser.username}</span>
+                        <span className="text-xs opacity-70">
+                          {format(new Date(message.createdAt), 'p')}
+                        </span>
                       </div>
-                    )}
-                    {message.reactions &&
-                      Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {Object.entries(message.reactions as Record<string, number[]>).map(
-                            ([reaction, userIds]) => (
-                              userIds.length > 0 && (
-                                <Button
-                                  key={reaction}
-                                  variant="secondary"
-                                  size="sm"
-                                  className="h-6 text-xs"
-                                  onClick={() => handleReaction(message.id, reaction)}
-                                >
-                                  {reaction} {userIds.length}
-                                </Button>
-                              )
-                            )
-                          )}
+                      <p className="text-sm break-words">{message.content}</p>
+                      {message.files && message.files.length > 0 && (
+                        <div className="space-y-2">
+                          {message.files.map((file: string, index: number) => (
+                            <div key={index}>{renderFileAttachment(file)}</div>
+                          ))}
                         </div>
                       )}
+                      {message.reactions &&
+                        Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {Object.entries(message.reactions as Record<string, number[]>).map(
+                              ([reaction, userIds]) => (
+                                userIds.length > 0 && (
+                                  <Button
+                                    key={reaction}
+                                    variant="secondary"
+                                    size="sm"
+                                    className="h-6 text-xs"
+                                    onClick={() => handleReaction(message.id, reaction)}
+                                  >
+                                    {reaction} {userIds.length}
+                                  </Button>
+                                )
+                              )
+                            )}
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Smile className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-2" align="end">
+                        <div className="grid grid-cols-4 gap-2">
+                          {REACTIONS.map((reaction) => (
+                            <Button
+                              key={reaction}
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleReaction(message.id, reaction)}
+                            >
+                              {reaction}
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {channelId && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onThreadSelect(message as Message)}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Smile className="h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-2" align="end">
-                      <div className="grid grid-cols-4 gap-2">
-                        {REACTIONS.map((reaction) => (
-                          <Button
-                            key={reaction}
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleReaction(message.id, reaction)}
-                          >
-                            {reaction}
-                          </Button>
-                        ))}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  {channelId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onThreadSelect(message as Message)}
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                {channelId && 'replies' in message && message.replies && message.replies.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    className="ml-12 mt-2 text-xs"
+                    onClick={() => onThreadSelect(message as Message)}
+                  >
+                    {message.replies.length} replies
+                  </Button>
+                )}
               </div>
-              {channelId && 'replies' in message && message.replies && message.replies.length > 0 && (
-                <Button
-                  variant="ghost"
-                  className="ml-12 mt-2 text-xs"
-                  onClick={() => onThreadSelect(message as Message)}
-                >
-                  {message.replies.length} replies
-                </Button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </ScrollArea>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
