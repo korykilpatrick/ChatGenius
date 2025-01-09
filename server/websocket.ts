@@ -67,13 +67,14 @@ export function setupWebSocket(server: Server) {
           }
 
           try {
-            // Insert the direct message
+            // Insert the direct message with files
             const [newMessage] = await db
               .insert(directMessages)
               .values({
                 conversationId,
                 content,
                 senderId,
+                files: files || [], // Include files array
               })
               .returning();
 
@@ -88,10 +89,12 @@ export function setupWebSocket(server: Server) {
                 .from(users)
                 .where(eq(users.id, senderId))
                 .limit(1);
+
               await db
                 .update(directMessageConversations)
                 .set({ lastMessageAt: new Date() })
                 .where(eq(directMessageConversations.id, conversationId));
+
               // Get conversation participants
               const participants = await db
                 .select({
@@ -109,7 +112,10 @@ export function setupWebSocket(server: Server) {
               const response = {
                 type: "message_created",
                 payload: {
-                  message: newMessage,
+                  message: {
+                    ...newMessage,
+                    files: files || [], // Include files in the response
+                  },
                   user: userData,
                 },
               };
