@@ -14,13 +14,12 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { Message } from "@db/schema";
 
 export default function ChatPage() {
-  const [selectedChannel, setSelectedChannel] = useState<number | null>(1); // Channel ID 1 is #general
+  const [selectedChannel, setSelectedChannel] = useState<number | null>(1);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const { user } = useUser();
   const { isConnected } = useWebSocket();
   const [location] = useLocation();
 
-  // Extract user ID from DM URL if present
   const dmMatch = location.match(/^\/dm\/(\d+)/);
   const selectedUserId = dmMatch ? parseInt(dmMatch[1], 10) : null;
 
@@ -40,16 +39,18 @@ export default function ChatPage() {
 
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <div className="flex flex-col h-full">
-            <ChannelList 
-              selectedChannel={selectedUserId ? null : selectedChannel}
-              onSelectChannel={(id) => {
-                setSelectedChannel(id);
-                setSelectedThread(null);
-              }}
-            />
-            <Separator className="my-2" />
-            <DirectMessagesList />
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col">
+              <ChannelList 
+                selectedChannel={selectedUserId ? null : selectedChannel}
+                onSelectChannel={(id) => {
+                  setSelectedChannel(id);
+                  setSelectedThread(null);
+                }}
+              />
+              <Separator className="my-2" />
+              <DirectMessagesList />
+            </div>
           </div>
         </ResizablePanel>
 

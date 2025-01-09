@@ -75,8 +75,8 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
   };
 
   return (
-    <div className="h-full flex flex-col p-4 bg-sidebar">
-      <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col min-h-0">
+      <div className="flex items-center justify-between p-4">
         <h2 className="font-semibold text-sidebar-foreground">Channels</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -121,7 +121,7 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
         </Dialog>
       </div>
       <ScrollArea className="flex-1">
-        <div className="space-y-1">
+        <div className="space-y-1 px-2">
           {channels.map((channel) => (
             <Button
               key={channel.id}

@@ -111,7 +111,7 @@ export function DirectMessagesList() {
 
   if (sortedUsers.length === 0) {
     return (
-      <div className="px-3 py-2">
+      <div className="px-4 py-2">
         <h2 className="mb-2 text-lg font-semibold tracking-tight">Direct Messages</h2>
         <p className="text-sm text-muted-foreground">No other users available</p>
       </div>
@@ -119,42 +119,43 @@ export function DirectMessagesList() {
   }
 
   return (
-    <div className="px-3 py-2">
-      <h2 className="mb-2 text-lg font-semibold tracking-tight">Direct Messages</h2>
-      <ScrollArea className="h-[calc(100vh-15rem)]">
-        <div className="space-y-[2px]">
+    <div className="flex flex-col min-h-0 flex-1">
+      <div className="px-4 py-2">
+        <h2 className="text-lg font-semibold tracking-tight">Direct Messages</h2>
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="space-y-[2px] px-2">
           {sortedUsers.map((user) => {
             const activeConversation = conversations.find(
               conv => conv.participant.id === user.id
             );
 
             return (
-              <div key={user.id}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start px-2 py-1.5 h-auto hover:bg-accent/50"
-                  onClick={() => startOrJoinConversation(user.id)}
-                >
-                  <div className="flex items-center gap-2 min-w-0 w-full">
-                    <Avatar className="h-5 w-5 shrink-0">
-                      <AvatarImage src={user.avatar || undefined} />
-                      <AvatarFallback>
-                        {user.username[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm truncate text-foreground block">
-                        {user.username}
+              <Button
+                key={user.id}
+                variant="ghost"
+                className="w-full justify-start px-2 py-1.5 h-auto hover:bg-accent/50"
+                onClick={() => startOrJoinConversation(user.id)}
+              >
+                <div className="flex items-center gap-2 min-w-0 w-full">
+                  <Avatar className="h-5 w-5 shrink-0">
+                    <AvatarImage src={user.avatar || undefined} />
+                    <AvatarFallback>
+                      {user.username[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm truncate text-foreground block">
+                      {user.username}
+                    </span>
+                    {activeConversation?.lastMessage && (
+                      <span className="text-xs truncate text-muted-foreground block">
+                        {activeConversation.lastMessage.content}
                       </span>
-                      {activeConversation?.lastMessage && (
-                        <span className="text-xs truncate text-muted-foreground block">
-                          {activeConversation.lastMessage.content}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
-                </Button>
-              </div>
+                </div>
+              </Button>
             );
           })}
         </div>
