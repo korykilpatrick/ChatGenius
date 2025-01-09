@@ -36,9 +36,13 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
     : [`/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`];
 
   useEffect(() => {
+    console.log("Setting up thread view subscription for message:", message.id);
     const unsubscribe = subscribe((wsMessage) => {
+      console.log("Received WebSocket message in thread:", wsMessage);
+
       if (wsMessage.type === "message_created" && 
           wsMessage.payload.message.parentId === message.id) {
+        console.log("Updating thread view with new reply:", wsMessage.payload);
         // Update the thread replies view
         queryClient.setQueryData(
           threadQueryKey,
@@ -72,6 +76,8 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
   const { data: replies = [] } = useQuery<MessageType[]>({
     queryKey: threadQueryKey,
   });
+
+  console.log("Current thread replies:", replies);
 
   const handleReaction = (messageId: number, reaction: string) => {
     sendMessage("message_reaction", {

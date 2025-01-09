@@ -56,14 +56,18 @@ export default function DirectMessagePage() {
         </Link>
       </header>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
         <ResizablePanel defaultSize={75} minSize={50}>
-          <div className="flex-1 flex flex-col min-h-0">
-            <MessageList 
-              conversationId={conversation.conversation.id} 
-              onThreadSelect={setSelectedThread}
-            />
-            <MessageInput conversationId={conversation.conversation.id} />
+          <div className="h-full flex flex-col">
+            <div className="flex-1 min-h-0">
+              <MessageList 
+                conversationId={conversation.conversation.id} 
+                onThreadSelect={setSelectedThread}
+              />
+            </div>
+            <div className="flex-shrink-0">
+              <MessageInput conversationId={conversation.conversation.id} />
+            </div>
           </div>
         </ResizablePanel>
 
