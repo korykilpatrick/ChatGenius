@@ -55,6 +55,15 @@ export default function MessageList({
     }
   }, []);
 
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollToBottom();
+        isInitialLoadRef.current = false;
+      }, 100);
+    }
+  }, [messages, channelId, conversationId, scrollToBottom]);
+
   const handleWebSocketMessage = useCallback(
     (message: any) => {
       if (message.type === "message_created") {
@@ -85,7 +94,7 @@ export default function MessageList({
                 }
               } else {
                 // Handle new reply
-                return oldData.map(msg => {
+                return oldData.map((msg) => {
                   if (msg.id === message.payload.message.parentId) {
                     // Update parent message's replies
                     return {
@@ -125,10 +134,10 @@ export default function MessageList({
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string) => {
-      const payload: any = { 
-        messageId, 
+      const payload: any = {
+        messageId,
         reaction,
-        userId: user?.id // Include userId in the payload
+        userId: user?.id, // Include userId in the payload
       };
       if (conversationId) {
         payload.isDM = true;
