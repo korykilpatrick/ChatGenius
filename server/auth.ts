@@ -188,40 +188,44 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/logout", (req, res) => {
+  app.post("/api/logout", async (req, res) => {
     const userId = req.user?.id;
 
-    // Update user status to offline if we have a user
-    if (userId) {
-      db.update(users)
-        .set({ 
-          status: "offline",
-          lastSeen: new Date()
-        })
-        .where(eq(users.id, userId))
-        .execute()
-        .catch(err => console.error("Failed to update user status:", err));
-    }
-
-    // Clear user data immediately
-    req.user = undefined;
-
-    // Destroy session and clear cookie
-    req.session.destroy((err) => {
-      if (err) {
-        console.error("Logout error:", err);
-        return res.status(500).json({ message: "Failed to logout" });
+    try {
+      // Update user status to offline if we have a user
+      if (userId) {
+        await db.update(users)
+          .set({ 
+            status: "offline",
+            lastSeen: new Date()
+          })
+          .where(eq(users.id, userId))
+          .execute();
       }
 
-      res.clearCookie("connect.sid", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/"
-      });
+      // Clear user data immediately
+      req.user = undefined;
 
-      res.json({ message: "Logout successful" });
-    });
+      // Destroy session and clear cookie
+      req.session.destroy((err) => {
+        if (err) {
+          console.error("Logout error:", err);
+          return res.status(500).json({ message: "Failed to logout" });
+        }
+
+        res.clearCookie("connect.sid", {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/"
+        });
+
+        res.json({ message: "Logout successful" });
+      });
+    } catch (error) {
+      console.error("Failed to update user status:", error);
+      res.status(500).json({ message: "Failed to logout" });
+    }
   });
 
   app.get("/api/user", (req, res) => {
