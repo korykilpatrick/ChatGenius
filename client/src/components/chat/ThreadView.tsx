@@ -22,8 +22,9 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
 
   useEffect(() => {
     const unsubscribe = subscribe((wsMessage) => {
-      if (wsMessage.type === "message_created" && wsMessage.payload.message.parentId === message.id) {
-        // Update thread replies
+      if (wsMessage.type === "message_created" && 
+          wsMessage.payload.message.parentId === message.id) {
+        // Only update the thread replies view, let MessageList handle the parent's reply count
         queryClient.setQueryData(
           [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
           (oldData: Message[] = []) => {
@@ -33,22 +34,6 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
             };
             const exists = oldData.some((msg) => msg.id === newReply.id);
             return exists ? oldData : [...oldData, newReply];
-          }
-        );
-
-        // Update parent message's reply count in the main channel view
-        queryClient.setQueryData(
-          [`/api/channels/${message.channelId}/messages`],
-          (oldData: Message[] = []) => {
-            return oldData.map(msg => {
-              if (msg.id === message.id) {
-                return {
-                  ...msg,
-                  replies: [...(msg.replies || []), wsMessage.payload.message],
-                };
-              }
-              return msg;
-            });
           }
         );
       }
