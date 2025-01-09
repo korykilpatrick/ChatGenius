@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +10,14 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
 import MessageInput from "@/components/chat/MessageInput";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Smile } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
 interface Message {
   id: number;
@@ -17,6 +25,7 @@ interface Message {
   createdAt: string;
   senderId: number;
   files?: string[];
+  reactions?: Record<string, number[]>;
   sender: {
     id: number;
     username: string;
@@ -43,7 +52,7 @@ export default function DirectMessagePage() {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const { subscribe } = useWebSocket();
+  const { subscribe, sendMessage } = useWebSocket();
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -79,6 +88,16 @@ export default function DirectMessagePage() {
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
+  const handleReaction = (messageId: number, reaction: string) => {
+    if (!currentUser) return;
+    sendMessage("message_reaction", {
+      messageId,
+      reaction,
+      userId: currentUser.id,
+      isDM: true,
+    });
+  };
+
   // Handle WebSocket messages for real-time updates
   useEffect(() => {
     if (!conversation?.conversation?.id) return;
@@ -95,6 +114,16 @@ export default function DirectMessagePage() {
             };
             const exists = oldData.some((msg) => msg.id === newMessage.id);
             return exists ? oldData : [...oldData, newMessage];
+          }
+        );
+      } else if (message.type === "message_reaction_updated") {
+        const { messageId, reactions } = message.payload;
+        queryClient.setQueryData(
+          [`/api/dm/conversations/${conversation.conversation.id}/messages`],
+          (oldData: Message[] = []) => {
+            return oldData.map((msg) =>
+              msg.id === messageId ? { ...msg, reactions } : msg
+            );
           }
         );
       }
@@ -194,7 +223,7 @@ export default function DirectMessagePage() {
             sortedMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex gap-2 ${
+                className={`flex gap-2 group ${
                   msg.sender.id === currentUser.id ? "justify-end" : ""
                 }`}
               >
@@ -206,28 +235,70 @@ export default function DirectMessagePage() {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                <div
-                  className={`max-w-[70%] ${
-                    msg.sender.id === currentUser.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  } rounded-lg p-3`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs opacity-70">
-                      {format(new Date(msg.createdAt), "PP p")}
-                    </span>
+                <div className="flex flex-col">
+                  <div
+                    className={`max-w-[70%] ${
+                      msg.sender.id === currentUser.id
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    } rounded-lg p-3`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs opacity-70">
+                        {format(new Date(msg.createdAt), "PP p")}
+                      </span>
+                    </div>
+                    <p className="text-sm break-words">{msg.content}</p>
+                    {msg.files && msg.files.length > 0 && (
+                      <div className="space-y-2">
+                        {msg.files.map((file, index) => (
+                          <div key={index}>
+                            {renderFileAttachment(file)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-sm break-words">{msg.content}</p>
-                  {msg.files && msg.files.length > 0 && (
-                    <div className="space-y-2">
-                      {msg.files.map((file, index) => (
-                        <div key={index}>
-                          {renderFileAttachment(file)}
-                        </div>
+                  {msg.reactions && Object.entries(msg.reactions).length > 0 && (
+                    <div className="flex gap-1 mt-1">
+                      {Object.entries(msg.reactions).map(([reaction, userIds]) => (
+                        userIds.length > 0 && (
+                          <Button
+                            key={reaction}
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => handleReaction(msg.id, reaction)}
+                          >
+                            {reaction} {userIds.length}
+                          </Button>
+                        )
                       ))}
                     </div>
                   )}
+                </div>
+                <div className="opacity-0 group-hover:opacity-100">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-2" align="end">
+                      <div className="grid grid-cols-4 gap-2">
+                        {REACTIONS.map((reaction) => (
+                          <Button
+                            key={reaction}
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleReaction(msg.id, reaction)}
+                          >
+                            {reaction}
+                          </Button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             ))
