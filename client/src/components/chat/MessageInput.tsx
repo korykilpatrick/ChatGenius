@@ -70,11 +70,11 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!content.trim() && !files.length) || !user) return;
+    if (!user || (!content.trim() && !files.length)) return;
 
     if (channelId) {
       sendMessage("new_message", {
-        content: content.trim(),
+        content: content.trim() || " ", // Send space if no content
         channelId,
         userId: user.id,
         parentId,
@@ -82,7 +82,7 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
       });
     } else if (conversationId) {
       sendMessage("new_direct_message", {
-        content: content.trim(),
+        content: content.trim() || " ", // Send space if no content
         conversationId,
         senderId: user.id,
         files: files.map(f => f.url)
@@ -162,7 +162,7 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
         />
         <Button
           type="submit"
-          disabled={!content.trim() && !files.length}
+          disabled={!user || (!content.trim() && !files.length)}
           size="icon"
           className="flex-shrink-0"
         >
