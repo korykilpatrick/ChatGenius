@@ -3,20 +3,18 @@ import { useRoute, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-user";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
 import MessageInput from "@/components/chat/MessageInput";
 import { Button } from "@/components/ui/button";
-import { Download, Smile } from "lucide-react";
+import { Download, MessageSquare, Smile } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
-  const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
@@ -38,7 +36,6 @@ export default function DirectMessagePage() {
 
   useEffect(() => {
     if (!conversation?.conversation?.id) return;
-
     const handleWebSocketMessage = (wsMessage: any) => {
       if (wsMessage.type === "message_created" &&
           wsMessage.payload.message.conversationId === conversation.conversation.id) {
@@ -151,18 +148,17 @@ export default function DirectMessagePage() {
           ) : (
             sortedMessages.map((msg) => (
               <div key={msg.id} className="group message-row message-row-hover">
-                <div className="flex items-start gap-3 w-full">
-                  {msg.sender.id !== currentUser.id && (
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.sender.avatar || undefined} />
-                      <AvatarFallback>
-                        {msg.sender.username[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
+                <div className="flex items-start gap-3">
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarImage src={msg.sender.avatar || undefined} />
+                    <AvatarFallback>
+                      {msg.sender.username[0].toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex-1">
                     <div className="message-bubble">
                       <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">{msg.sender.username}</span>
                         <span className="text-xs opacity-70">
                           {format(new Date(msg.createdAt), 'p')}
                         </span>
@@ -194,7 +190,7 @@ export default function DirectMessagePage() {
                       )}
                     </div>
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100">
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -216,6 +212,13 @@ export default function DirectMessagePage() {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
