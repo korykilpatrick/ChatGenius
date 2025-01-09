@@ -7,6 +7,7 @@ import { MessageSquare, Smile, Download } from "lucide-react";
 import { format } from "date-fns";
 import type { Message, DirectMessageWithSender } from "@db/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { useUser } from "@/hooks/use-user";
 import {
   Popover,
   PopoverContent,
@@ -19,7 +20,7 @@ type MessageListProps = {
   onThreadSelect: (message: Message) => void;
 };
 
-const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
+const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
 type MessageType = Message | DirectMessageWithSender;
 
@@ -31,6 +32,7 @@ export default function MessageList({
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isInitialLoadRef = useRef(true);
+  const { user } = useUser();
 
   const { data: messages = [] } = useQuery<MessageType[]>({
     queryKey: channelId
@@ -42,23 +44,16 @@ export default function MessageList({
   const { subscribe, sendMessage } = useWebSocket();
 
   const scrollToBottom = useCallback(() => {
-    const scrollViewport = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement;
+    const scrollViewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    ) as HTMLDivElement;
     if (scrollViewport) {
       requestAnimationFrame(() => {
         scrollViewport.scrollTop = scrollViewport.scrollHeight;
-        console.log('Scrolled to bottom, height:', scrollViewport.scrollHeight);
+        console.log("Scrolled to bottom, height:", scrollViewport.scrollHeight);
       });
     }
   }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => {
-        scrollToBottom();
-        isInitialLoadRef.current = false;
-      }, 100);
-    }
-  }, [messages, channelId, conversationId, scrollToBottom]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
@@ -102,7 +97,7 @@ export default function MessageList({
                 });
               }
               return oldData;
-            }
+            },
           );
         }
       } else if (message.type === "message_reaction_updated") {
@@ -113,13 +108,13 @@ export default function MessageList({
             : [`/api/dm/conversations/${conversationId}/messages`],
           (oldData: MessageType[] = []) => {
             return oldData.map((msg) =>
-              msg.id === messageId ? { ...msg, reactions } : msg
+              msg.id === messageId ? { ...msg, reactions } : msg,
             );
-          }
+          },
         );
       }
     },
-    [channelId, conversationId, queryClient, scrollToBottom]
+    [channelId, conversationId, queryClient, scrollToBottom],
   );
 
   useEffect(() => {
@@ -130,13 +125,21 @@ export default function MessageList({
 
   const handleReaction = useCallback(
     (messageId: number, reaction: string) => {
-      sendMessage("message_reaction", { messageId, reaction });
+      const payload: any = { 
+        messageId, 
+        reaction,
+        userId: user?.id // Include userId in the payload
+      };
+      if (conversationId) {
+        payload.isDM = true;
+      }
+      sendMessage("message_reaction", payload);
     },
-    [sendMessage]
+    [sendMessage, conversationId, user?.id],
   );
 
   const renderFileAttachment = (file: string) => {
-    const filePath = file.startsWith('/') ? file : `/uploads/${file}`;
+    const filePath = file.startsWith("/") ? file : `/uploads/${file}`;
     const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
 
     if (isImage) {
@@ -168,14 +171,14 @@ export default function MessageList({
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <Download className="h-4 w-4" />
-          {filePath.split('/').pop()}
+          {filePath.split("/").pop()}
         </a>
       </div>
     );
   };
 
-  const sortedMessages = [...messages].sort((a, b) =>
-    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 
   return (
@@ -187,11 +190,15 @@ export default function MessageList({
           </div>
         ) : (
           sortedMessages.map((message) => {
-            const messageUser = 'user' in message ? message.user : message.sender;
+            const messageUser =
+              "user" in message ? message.user : message.sender;
             if (!messageUser) return null;
 
             return (
-              <div key={message.id} className="group message-row message-row-hover">
+              <div
+                key={message.id}
+                className="group message-row message-row-hover"
+              >
                 <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src={messageUser.avatar || undefined} />
@@ -202,9 +209,11 @@ export default function MessageList({
                   <div className="flex-1">
                     <div className="message-bubble">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold">{messageUser.username}</span>
+                        <span className="font-semibold">
+                          {messageUser.username}
+                        </span>
                         <span className="text-xs opacity-70">
-                          {format(new Date(message.createdAt), 'p')}
+                          {format(new Date(message.createdAt), "p")}
                         </span>
                       </div>
                       <p className="text-sm break-words">{message.content}</p>
@@ -216,22 +225,27 @@ export default function MessageList({
                         </div>
                       )}
                       {message.reactions &&
-                        Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
+                        Object.entries(
+                          message.reactions as Record<string, number[]>,
+                        ).length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {Object.entries(message.reactions as Record<string, number[]>).map(
-                              ([reaction, userIds]) => (
+                            {Object.entries(
+                              message.reactions as Record<string, number[]>,
+                            ).map(
+                              ([reaction, userIds]) =>
                                 userIds.length > 0 && (
                                   <Button
                                     key={reaction}
                                     variant="secondary"
                                     size="sm"
                                     className="h-6 text-xs"
-                                    onClick={() => handleReaction(message.id, reaction)}
+                                    onClick={() =>
+                                      handleReaction(message.id, reaction)
+                                    }
                                   >
                                     {reaction} {userIds.length}
                                   </Button>
-                                )
-                              )
+                                ),
                             )}
                           </div>
                         )}
@@ -251,7 +265,9 @@ export default function MessageList({
                               key={reaction}
                               variant="ghost"
                               className="h-8 w-8 p-0"
-                              onClick={() => handleReaction(message.id, reaction)}
+                              onClick={() =>
+                                handleReaction(message.id, reaction)
+                              }
                             >
                               {reaction}
                             </Button>
@@ -271,15 +287,18 @@ export default function MessageList({
                     )}
                   </div>
                 </div>
-                {channelId && 'replies' in message && message.replies && message.replies.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    className="ml-12 mt-2 text-xs"
-                    onClick={() => onThreadSelect(message as Message)}
-                  >
-                    {message.replies.length} replies
-                  </Button>
-                )}
+                {channelId &&
+                  "replies" in message &&
+                  message.replies &&
+                  message.replies.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      className="ml-12 mt-2 text-xs"
+                      onClick={() => onThreadSelect(message as Message)}
+                    >
+                      {message.replies.length} replies
+                    </Button>
+                  )}
               </div>
             );
           })
