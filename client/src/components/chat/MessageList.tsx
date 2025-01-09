@@ -17,7 +17,7 @@ import {
 type MessageListProps = {
   channelId?: number;
   conversationId?: number;
-  onThreadSelect: (message: Message) => void;
+  onThreadSelect: (message: Message | DirectMessageWithSender) => void;
 };
 
 const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
@@ -93,7 +93,7 @@ export default function MessageList({
                   return [...oldData, newMessage];
                 }
               } else {
-                // Handle new reply
+                // Handle new reply for both channels and DMs
                 return oldData.map((msg) => {
                   if (msg.id === message.payload.message.parentId) {
                     // Update parent message's replies
@@ -108,19 +108,39 @@ export default function MessageList({
               return oldData;
             },
           );
+
+          // Also update thread view if it's a reply
+          if (isReply) {
+            const queryKey = channelId
+              ? [`/api/channels/${channelId}/messages/${message.payload.message.parentId}/replies`]
+              : [`/api/dm/conversations/${conversationId}/messages/${message.payload.message.parentId}/replies`];
+
+            queryClient.setQueryData(queryKey, (oldData: MessageType[] = []) => {
+              const newMessage = {
+                ...message.payload.message,
+                user: message.payload.user,
+                sender: message.payload.user,
+              };
+              return [...oldData, newMessage];
+            });
+          }
         }
       } else if (message.type === "message_reaction_updated") {
         const { messageId, reactions } = message.payload;
-        queryClient.setQueryData(
+        // Update reactions in both main message list and thread views
+        const queryKeys = [
           channelId
             ? [`/api/channels/${channelId}/messages`]
             : [`/api/dm/conversations/${conversationId}/messages`],
-          (oldData: MessageType[] = []) => {
+        ];
+
+        queryKeys.forEach(queryKey => {
+          queryClient.setQueryData(queryKey, (oldData: MessageType[] = []) => {
             return oldData.map((msg) =>
               msg.id === messageId ? { ...msg, reactions } : msg,
             );
-          },
-        );
+          });
+        });
       }
     },
     [channelId, conversationId, queryClient, scrollToBottom],
@@ -284,30 +304,25 @@ export default function MessageList({
                         </div>
                       </PopoverContent>
                     </Popover>
-                    {channelId && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => onThreadSelect(message as Message)}
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {channelId &&
-                  "replies" in message &&
-                  message.replies &&
-                  message.replies.length > 0 && (
                     <Button
                       variant="ghost"
-                      className="ml-12 mt-2 text-xs"
-                      onClick={() => onThreadSelect(message as Message)}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onThreadSelect(message)}
                     >
-                      {message.replies.length} replies
+                      <MessageSquare className="h-4 w-4" />
                     </Button>
-                  )}
+                  </div>
+                </div>
+                {"replies" in message && message.replies && message.replies.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    className="ml-12 mt-2 text-xs"
+                    onClick={() => onThreadSelect(message)}
+                  >
+                    {message.replies.length} replies
+                  </Button>
+                )}
               </div>
             );
           })

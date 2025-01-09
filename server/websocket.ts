@@ -57,7 +57,7 @@ export function setupWebSocket(server: Server) {
           extWs.userId = message.payload.userId;
           console.log(`[WebSocket] User ${extWs.userId} connected`);
         } else if (message.type === "new_direct_message") {
-          const { conversationId, content, senderId, files } = message.payload;
+          const { conversationId, content, senderId, files, parentId } = message.payload;
           if (!conversationId || !content || !senderId) {
             console.error(
               "[WebSocket] Invalid message payload:",
@@ -67,14 +67,15 @@ export function setupWebSocket(server: Server) {
           }
 
           try {
-            // Insert the direct message with files
+            // Insert the direct message with files and parentId
             const [newMessage] = await db
               .insert(directMessages)
               .values({
                 conversationId,
                 content,
                 senderId,
-                files: files || [], // Include files array
+                files: files || [],
+                parentId: parentId || null, // Support for thread replies
               })
               .returning();
 
@@ -114,7 +115,7 @@ export function setupWebSocket(server: Server) {
                 payload: {
                   message: {
                     ...newMessage,
-                    files: newMessage.files || [], // Ensure files from DB are included
+                    files: newMessage.files || [],
                   },
                   user: userData,
                 },
