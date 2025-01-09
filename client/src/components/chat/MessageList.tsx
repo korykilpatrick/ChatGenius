@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Smile } from "lucide-react";
+import { MessageSquare, Smile, Download } from "lucide-react";
 import MessageInput from "@/components/chat/MessageInput";
 import { format } from "date-fns";
 import type { Message } from "@db/schema";
@@ -109,6 +109,44 @@ export default function MessageList({
     [sendMessage]
   );
 
+  const renderFileAttachment = (file: string) => {
+    const isImage = file.match(/\.(jpg|jpeg|png|gif)$/i);
+
+    if (isImage) {
+      return (
+        <div className="mt-2 relative group">
+          <img
+            src={file}
+            alt="Attached file"
+            className="max-h-48 rounded-lg object-contain"
+          />
+          <a
+            href={file}
+            download
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Button variant="secondary" size="icon" className="h-8 w-8">
+              <Download className="h-4 w-4" />
+            </Button>
+          </a>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2">
+        <a
+          href={file}
+          download
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <Download className="h-4 w-4" />
+          {file.split('/').pop()}
+        </a>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
@@ -132,6 +170,15 @@ export default function MessageList({
                     </span>
                   </div>
                   <p className="mt-1">{message.content}</p>
+                  {message.files && message.files.length > 0 && (
+                    <div className="space-y-2">
+                      {message.files.map((file, index) => (
+                        <div key={index}>
+                          {renderFileAttachment(file)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {message.reactions &&
                     Object.entries(
                       message.reactions as Record<string, number[]>,

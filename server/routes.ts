@@ -6,6 +6,53 @@ import { db } from "@db";
 import { channels, messages, channelMembers, users, directMessageConversations, directMessageParticipants, directMessages } from "@db/schema";
 import { eq, and, desc, asc, isNull, or, inArray, not, exists, max } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import mime from "mime-types";
+import express from 'express';
+
+// Configure multer for file uploads
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+// Ensure uploads directory exists
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (_req, _file, cb) {
+    cb(null, UPLOAD_DIR);
+  },
+  filename: function (_req, file, cb) {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+    cb(null, `${uniqueSuffix}-${file.originalname}`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    // Allow images, PDFs, and common document types
+    const allowedMimes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain'
+    ];
+
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  }
+});
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes first
@@ -30,6 +77,25 @@ export function registerRoutes(app: Express): Server {
       return res.status(401).json({ message: "Not authenticated" });
     }
     next();
+  });
+
+  // Serve uploaded files
+  app.use('/uploads', express.static(UPLOAD_DIR));
+
+  // File upload endpoint
+  app.post("/api/upload", upload.array("files", 5), (req, res) => {
+    if (!req.files || !Array.isArray(req.files)) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
+
+    const files = (req.files as Express.Multer.File[]).map(file => ({
+      url: `/uploads/${file.filename}`,
+      name: file.originalname,
+      type: file.mimetype,
+      size: file.size
+    }));
+
+    res.json({ files });
   });
 
   // Add users endpoint
