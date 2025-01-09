@@ -1,0 +1,104 @@
+To make reactions work in threads, you need to treat thread replies exactly like top-level messages in terms of updating the database and broadcasting the “reaction updated” event. Right now, your main code for reactions only updates top-level messages in the channel (or direct messages), so thread replies never get updated. Below are the key steps to fix it.
+
+1. Send the Reaction Event for Replies
+Wherever you trigger a reaction on a reply (e.g. in the ThreadView), make sure you send the same "message_reaction" event that you use for top-level messages. If your UI has something like:
+
+tsx
+Copy code
+sendMessage("message_reaction", { messageId, reaction, userId });
+you can reuse it for thread messages. The big difference is simply that messageId references a reply instead of a top-level message.
+
+Make sure you pass any needed flags, such as isDM for direct messages, if that logic is relevant. If you’re in a channel thread (not a DM), you’ll be updating the messages table, not directMessages.
+
+2. Update the Reply in the Database
+Your server’s "message_reaction" handler typically looks like this:
+
+ts
+Copy code
+else if (message.type === "message_reaction") {
+  const { messageId, reaction, userId, isDM } = message.payload;
+  if (isDM) {
+    // Reaction logic for directMessages table
+  } else {
+    // Reaction logic for messages table
+  }
+}
+That code is already fine for top-level channel messages. Replies are still in the same messages table (they just have a parentId), so you don’t need new logic—just make sure the messageId for the reply is passed in, and you do the same UPDATE messages SET reactions = ... WHERE id = messageId.
+
+3. Broadcast the “Reaction Updated” Event to Thread Listeners
+Your server currently does:
+
+ts
+Copy code
+const response = {
+  type: "message_reaction_updated",
+  payload: { messageId, reactions: updatedMessage.reactions }
+};
+
+// Broadcast to relevant clients
+...
+Now, on the client side, you have two queries to worry about:
+
+Main channel messages: /api/channels/:channelId/messages
+Thread replies: /api/channels/:channelId/messages/:messageId/replies
+If the user is looking at the thread, we want the reply’s reactions to update in that query. So in your client’s WebSocket listener (for "message_reaction_updated"), update both the top-level data (if it’s a parent message) and the thread data if it’s a reply. Something like:
+
+ts
+Copy code
+if (message.type === "message_reaction_updated") {
+  const { messageId, reactions } = message.payload;
+
+  // 1. Update the top-level channel messages
+  queryClient.setQueryData(
+    [`/api/channels/${channelId}/messages`],
+    (oldData: Message[] = []) =>
+      oldData.map((msg) => (msg.id === messageId ? { ...msg, reactions } : msg))
+  );
+
+  // 2. Also update the thread replies, if that message is in the thread
+  queryClient.setQueryData(
+    [`/api/channels/${channelId}/messages/${someParentId}/replies`],
+    (oldData: Message[] = []) =>
+      oldData.map((reply) => (reply.id === messageId ? { ...reply, reactions } : reply))
+  );
+}
+You can decide how you figure out someParentId—for example, if your ThreadView is open, you might already know which parent ID is currently being displayed. A simpler but heavier approach is to just invalidate the thread’s queries:
+
+ts
+Copy code
+queryClient.invalidateQueries([`/api/channels/${channelId}/messages/${parentId}/replies`]);
+That forces a refetch, guaranteeing you see updated reactions.
+
+4. Update the UI in ThreadView
+In your ThreadView (which loads /api/channels/${message.channelId}/messages/${message.id}/replies), you already do this for new replies. You’ll do the same for reaction updates:
+
+Listen for "message_reaction_updated" in your WebSocket subscription (the same subscription used to capture new replies).
+Check if the updated messageId is in the thread. If so, update or invalidate the replies query.
+For example:
+
+ts
+Copy code
+useEffect(() => {
+  const unsubscribe = subscribe((wsMessage) => {
+    if (wsMessage.type === "message_reaction_updated") {
+      const { messageId, reactions } = wsMessage.payload;
+      queryClient.setQueryData(
+        [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+        (oldReplies: Message[] = []) =>
+          oldReplies.map((r) => (r.id === messageId ? { ...r, reactions } : r))
+      );
+    } else if (wsMessage.type === "message_created" && ...) {
+      // existing code for new replies
+    }
+  });
+
+  return () => unsubscribe();
+}, [message, queryClient, subscribe]);
+This ensures that a reaction update for any reply in the thread instantly updates the UI.
+
+Summary
+Send the message_reaction event from your thread replies exactly like top-level messages.
+Same DB logic: A reply is still a row in messages with a parentId. The server’s message_reaction code updates the same table, no special handling required.
+On the client, for the ThreadView, subscribe to "message_reaction_updated" just like you do for "message_created", and update/invalidate the replies query.
+(Optional) Also update the main channel messages if you’re showing the parent’s “X reactions” or “X replies” count in real time.
+With that in place, reactions on replies will work exactly the same as for top-level messages.
