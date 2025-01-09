@@ -110,18 +110,20 @@ export default function MessageList({
   );
 
   const renderFileAttachment = (file: string) => {
-    const isImage = file.match(/\.(jpg|jpeg|png|gif)$/i);
+    // Ensure file path starts with /uploads/
+    const filePath = file.startsWith('/') ? file : `/uploads/${file}`;
+    const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
 
     if (isImage) {
       return (
         <div className="mt-2 relative group">
           <img
-            src={file}
+            src={filePath}
             alt="Attached file"
             className="max-h-48 rounded-lg object-contain"
           />
           <a
-            href={file}
+            href={filePath}
             download
             className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
           >
@@ -136,12 +138,12 @@ export default function MessageList({
     return (
       <div className="mt-2">
         <a
-          href={file}
+          href={filePath}
           download
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <Download className="h-4 w-4" />
-          {file.split('/').pop()}
+          {filePath.split('/').pop()}
         </a>
       </div>
     );
