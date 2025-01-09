@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DirectMessagesList } from "@/components/DirectMessagesList";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Message } from "@db/schema";
 
 export default function ChatPage() {
@@ -39,18 +40,20 @@ export default function ChatPage() {
 
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <div className="flex flex-col h-full overflow-hidden">
-            <div className="flex-1 min-h-0 flex flex-col">
-              <ChannelList 
-                selectedChannel={selectedUserId ? null : selectedChannel}
-                onSelectChannel={(id) => {
-                  setSelectedChannel(id);
-                  setSelectedThread(null);
-                }}
-              />
-              <Separator className="my-2" />
-              <DirectMessagesList />
-            </div>
+          <div className="h-full">
+            <ScrollArea className="h-full">
+              <div className="space-y-2">
+                <ChannelList 
+                  selectedChannel={selectedUserId ? null : selectedChannel}
+                  onSelectChannel={(id) => {
+                    setSelectedChannel(id);
+                    setSelectedThread(null);
+                  }}
+                />
+                <Separator className="mx-2" />
+                <DirectMessagesList />
+              </div>
+            </ScrollArea>
           </div>
         </ResizablePanel>
 

@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hash, Plus } from "lucide-react";
+import { Plus, Hash } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -75,9 +74,9 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
   };
 
   return (
-    <div className="flex flex-col min-h-0">
-      <div className="flex items-center justify-between p-4">
-        <h2 className="font-semibold text-sidebar-foreground">Channels</h2>
+    <div className="px-2">
+      <div className="flex items-center justify-between py-2">
+        <h2 className="font-semibold text-sidebar-foreground px-2">Channels</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="ghost" size="icon" className="text-sidebar-foreground">
@@ -120,21 +119,19 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
           </DialogContent>
         </Dialog>
       </div>
-      <ScrollArea className="flex-1">
-        <div className="space-y-1 px-2">
-          {channels.map((channel) => (
-            <Button
-              key={channel.id}
-              variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => onSelectChannel(channel.id)}
-            >
-              <Hash className="h-4 w-4 mr-2" />
-              {channel.name}
-            </Button>
-          ))}
-        </div>
-      </ScrollArea>
+      <div className="space-y-[2px]">
+        {channels.map((channel) => (
+          <Button
+            key={channel.id}
+            variant={selectedChannel === channel.id ? "secondary" : "ghost"}
+            className="w-full justify-start"
+            onClick={() => onSelectChannel(channel.id)}
+          >
+            <Hash className="h-4 w-4 mr-2" />
+            {channel.name}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }
