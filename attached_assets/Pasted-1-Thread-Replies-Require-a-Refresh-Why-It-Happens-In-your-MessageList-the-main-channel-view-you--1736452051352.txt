@@ -1,0 +1,39 @@
+1. Thread Replies Require a Refresh
+Why It Happens
+In your MessageList (the main channel view), you’re only updating the query data if message.payload.message.parentId is falsy. In other words, newly created top-level messages show up immediately in the main list, but replies with a non-null parentId don’t get appended there.
+The ThreadView does listen for message_created events, but the “reply count” in the main list (X replies) only comes from the server’s /api/channels/:channelId/messages endpoint. Unless you manually refresh or invalidate the query, that top-level item won’t show the new reply count.
+How to Fix
+Update the parent’s reply count in real time
+
+In your handleWebSocketMessage for message_created, if the new message has parentId, find its parent in the existing data and increment the replies array (or length).
+Example:
+ts
+Copy code
+if (message.type === "message_created") {
+  const payload = message.payload;
+  const isReply = !!payload.message.parentId;
+  if (channelId && payload.message.channelId === channelId) {
+    queryClient.setQueryData(
+      [`/api/channels/${channelId}/messages`],
+      (oldData: Message[] = []) => {
+        if (!isReply) {
+          // existing logic for top-level
+        } else {
+          // find the parent in oldData, push the new reply, or at least increment reply count
+        }
+        return oldData;
+      }
+    );
+  }
+}
+Alternatively, simpler but less efficient: call queryClient.invalidateQueries([ \/api/channels/${channelId}/messages` ])` whenever you get a new reply. It forces the channel’s messages to reload, so the reply count updates without a manual refresh.
+Make sure the ThreadView is also updated
+
+You already do:
+ts
+Copy code
+if (wsMessage.type === "message_created" && 
+    wsMessage.payload.message.parentId === message.id) {
+  // append to replies
+}
+That ensures new replies appear in the thread in real time. That part you already have working; the main fix is letting the parent’s reply count update in the channel list.
