@@ -108,18 +108,19 @@ export function setupWebSocket(server: Server) {
               // Create a set of participant IDs for efficient lookup
               const participantIds = new Set(participants.map((p) => p.userId));
 
-              // Broadcast to all participants
+              // Send back message_created type to match client expectation
               const response = {
                 type: "message_created",
                 payload: {
                   message: {
                     ...newMessage,
-                    files: files || [], // Include files in the response
+                    files: newMessage.files || [], // Ensure files from DB are included
                   },
                   user: userData,
                 },
               };
 
+              // Broadcast to all participants
               console.log(
                 "[WebSocket] Broadcasting to participants:",
                 Array.from(participantIds),
@@ -233,7 +234,7 @@ export function setupWebSocket(server: Server) {
                   payload: {
                     message: {
                       ...newMessage,
-                      files: files || [], // Include files in the response
+                      files: newMessage.files || [], // Include files in the response
                     },
                     user: userData,
                   },

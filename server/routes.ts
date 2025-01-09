@@ -317,6 +317,8 @@ export function registerRoutes(app: Express): Server {
           content: directMessages.content,
           createdAt: directMessages.createdAt,
           senderId: directMessages.senderId,
+          files: directMessages.files,  // Add files to the selection
+          reactions: directMessages.reactions, // Also include reactions for completeness
           sender: {
             id: users.id,
             username: users.username,
