@@ -67,7 +67,6 @@ export const directMessages = pgTable("direct_messages", {
   senderId: integer("sender_id")
     .references(() => users.id, { onDelete: 'cascade' })
     .notNull(),
-  files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
