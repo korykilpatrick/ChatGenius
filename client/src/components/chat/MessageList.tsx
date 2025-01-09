@@ -29,7 +29,6 @@ export default function MessageList({
 }: MessageListProps) {
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const scrollViewportRef = useRef<HTMLDivElement>(null);
   const isInitialLoadRef = useRef(true);
 
   const { data: messages = [] } = useQuery<Message[]>({
@@ -53,16 +52,16 @@ export default function MessageList({
     }
   }, []);
 
-  // Initial scroll to bottom when component mounts and messages are loaded
+  // Initial scroll to bottom when component mounts, messages load, or chat changes
   useEffect(() => {
-    if (isInitialLoadRef.current && messages.length > 0) {
+    if (messages.length > 0) {
       // Add a small delay to ensure content is rendered
       setTimeout(() => {
         scrollToBottom();
         isInitialLoadRef.current = false;
       }, 100);
     }
-  }, [messages, scrollToBottom]);
+  }, [messages, channelId, conversationId, scrollToBottom]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
@@ -171,7 +170,7 @@ export default function MessageList({
           {sortedMessages.map((message) => (
             <div key={message.id} className="group message-row message-row-hover">
               <div className="flex items-start gap-3">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-8 w-8 flex-shrink-0">
                   <AvatarImage src={message.user.avatar || undefined} />
                   <AvatarFallback>
                     {message.user.username[0].toUpperCase()}
@@ -189,9 +188,7 @@ export default function MessageList({
                     {message.files && message.files.length > 0 && (
                       <div className="space-y-2">
                         {message.files.map((file: string, index: number) => (
-                          <div key={index}>
-                            {renderFileAttachment(file)}
-                          </div>
+                          <div key={index}>{renderFileAttachment(file)}</div>
                         ))}
                       </div>
                     )}
