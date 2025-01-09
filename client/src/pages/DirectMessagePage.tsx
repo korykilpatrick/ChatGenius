@@ -6,6 +6,8 @@ import { useUser } from "@/hooks/use-user";
 import { useWebSocket } from "@/hooks/use-websocket";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
+import ThreadView from "@/components/chat/ThreadView";
+import type { DirectMessageWithSender } from "@db/schema";
 
 interface DirectMessageProps {
   conversation: {
@@ -25,6 +27,7 @@ export default function DirectMessagePage() {
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
+  const [selectedMessage, setSelectedMessage] = useState<DirectMessageWithSender | null>(null);
 
   const { data: conversation } = useQuery<DirectMessageProps>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -54,9 +57,22 @@ export default function DirectMessagePage() {
         </Link>
       </header>
 
-      <div className="flex-1 flex flex-col min-h-0">
-        <MessageList conversationId={conversation.conversation.id} onThreadSelect={() => {}} />
-        <MessageInput conversationId={conversation.conversation.id} />
+      <div className="flex-1 flex min-h-0">
+        <div className={`flex-1 flex flex-col ${selectedMessage ? 'border-r' : ''}`}>
+          <MessageList 
+            conversationId={conversation.conversation.id} 
+            onThreadSelect={(message) => setSelectedMessage(message as DirectMessageWithSender)} 
+          />
+          <MessageInput conversationId={conversation.conversation.id} />
+        </div>
+        {selectedMessage && (
+          <div className="w-[400px]">
+            <ThreadView 
+              message={selectedMessage} 
+              onClose={() => setSelectedMessage(null)} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );
