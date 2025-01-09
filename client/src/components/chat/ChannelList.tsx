@@ -1,14 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Hash, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { useWebSocket } from "@/hooks/use-websocket";
 import type { Channel } from "@db/schema";
 
 const channelSchema = z.object({
@@ -26,10 +27,27 @@ type ChannelListProps = {
 
 export default function ChannelList({ selectedChannel, onSelectChannel }: ChannelListProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
+
   const { data: channels = [] } = useQuery<Channel[]>({
     queryKey: ['/api/channels'],
   });
+
+  useEffect(() => {
+    const handleWebSocketMessage = (message: any) => {
+      if (message.type === "channel_created") {
+        queryClient.setQueryData<Channel[]>(['/api/channels'], (oldData = []) => {
+          const newChannel = message.payload;
+          const exists = oldData.some(channel => channel.id === newChannel.id);
+          return exists ? oldData : [...oldData, newChannel];
+        });
+      }
+    };
+
+    const unsubscribe = subscribe(handleWebSocketMessage);
+    return () => unsubscribe();
+  }, [subscribe, queryClient]);
 
   const form = useForm<ChannelFormData>({
     resolver: zodResolver(channelSchema),
