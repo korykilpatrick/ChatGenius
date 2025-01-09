@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import ChannelList from "@/components/chat/ChannelList";
 import MessageList from "@/components/chat/MessageList";
+import MessageInput from "@/components/chat/MessageInput";
 import ThreadView from "@/components/chat/ThreadView";
 import UserPresence from "@/components/chat/UserPresence";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -26,7 +27,7 @@ export default function ChatPage() {
 
   return (
     <div className="h-screen flex flex-col">
-      <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
+      <header className="border-b h-14 flex-shrink-0 flex items-center px-4 justify-between bg-background">
         <h1 className="text-xl font-bold">ChatGenius</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -38,7 +39,7 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
         <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
           <div className="h-full">
             <ScrollArea className="h-full">
@@ -60,18 +61,26 @@ export default function ChatPage() {
         <ResizableHandle />
 
         <ResizablePanel defaultSize={55} minSize={30}>
-          {selectedChannel && !selectedUserId && (
-            <MessageList
-              channelId={selectedChannel}
-              onThreadSelect={setSelectedThread}
-            />
-          )}
-          {selectedUserId && (
-            <MessageList
-              conversationId={selectedUserId}
-              onThreadSelect={setSelectedThread}
-            />
-          )}
+          <div className="h-full flex flex-col min-h-0">
+            {selectedChannel && !selectedUserId && (
+              <>
+                <MessageList
+                  channelId={selectedChannel}
+                  onThreadSelect={setSelectedThread}
+                />
+                <MessageInput channelId={selectedChannel} />
+              </>
+            )}
+            {selectedUserId && (
+              <>
+                <MessageList
+                  conversationId={selectedUserId}
+                  onThreadSelect={setSelectedThread}
+                />
+                <MessageInput conversationId={selectedUserId} />
+              </>
+            )}
+          </div>
         </ResizablePanel>
 
         {selectedThread && (
