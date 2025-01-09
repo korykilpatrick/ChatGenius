@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRoute, Link } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/use-user";
-import { useWebSocket } from "@/hooks/use-websocket";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
 import ThreadView from "@/components/chat/ThreadView";
@@ -25,16 +24,21 @@ interface DirectMessageProps {
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { user: currentUser } = useUser();
-  const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const [selectedMessage, setSelectedMessage] = useState<DirectMessageWithSender | null>(null);
 
+  // Track which message is opened in the thread sidebar
+  const [selectedMessage, setSelectedMessage] =
+    useState<DirectMessageWithSender | null>(null);
+
+  // Fetch or create the conversation with the other user
   const { data: conversation } = useQuery<DirectMessageProps>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
     enabled: !!otherUserId && !!currentUser,
   });
 
-  if (!currentUser || !otherUserId || !conversation) return null;
+  if (!currentUser || !otherUserId || !conversation) {
+    return null;
+  }
 
   const { participant } = conversation;
 
@@ -48,9 +52,7 @@ export default function DirectMessagePage() {
               {participant.username[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="font-semibold">
-            {participant.username}
-          </span>
+          <span className="font-semibold">{participant.username}</span>
         </div>
         <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
           Back to Chat
@@ -58,18 +60,21 @@ export default function DirectMessagePage() {
       </header>
 
       <div className="flex-1 flex min-h-0">
-        <div className={`flex-1 flex flex-col ${selectedMessage ? 'border-r' : ''}`}>
-          <MessageList 
-            conversationId={conversation.conversation.id} 
-            onThreadSelect={(message) => setSelectedMessage(message as DirectMessageWithSender)} 
+        <div className={`flex-1 flex flex-col ${selectedMessage ? "border-r" : ""}`}>
+          <MessageList
+            conversationId={conversation.conversation.id}
+            onThreadSelect={(message) =>
+              setSelectedMessage(message as DirectMessageWithSender)
+            }
           />
           <MessageInput conversationId={conversation.conversation.id} />
         </div>
+
         {selectedMessage && (
           <div className="w-[400px]">
-            <ThreadView 
-              message={selectedMessage} 
-              onClose={() => setSelectedMessage(null)} 
+            <ThreadView
+              message={selectedMessage}
+              onClose={() => setSelectedMessage(null)}
             />
           </div>
         )}

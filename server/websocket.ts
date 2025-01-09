@@ -8,7 +8,7 @@ import {
   directMessageParticipants,
   directMessageConversations,
 } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -28,7 +28,7 @@ export function setupWebSocket(server: Server) {
   });
 
   server.on("upgrade", (request, socket, head) => {
-    // Ignore vite HMR requests
+    // Ignore Vite HMR requests
     if (request.headers["sec-websocket-protocol"] === "vite-hmr") {
       return;
     }
@@ -54,32 +54,44 @@ export function setupWebSocket(server: Server) {
         console.log("[WebSocket] Received message:", message);
 
         if (message.type === "user_connected") {
+          // Identify which user is connected on this socket
           extWs.userId = message.payload.userId;
           console.log(`[WebSocket] User ${extWs.userId} connected`);
+
         } else if (message.type === "new_direct_message") {
-          const { conversationId, content, senderId, files } = message.payload;
+          const { conversationId, content, senderId, files, parentId } =
+            message.payload;
+          console.log("[WebSocket] Attempting to insert direct message:", {
+            conversationId,
+            content,
+            senderId,
+            parentId: parentId || null,
+            files: files || [],
+          });
           if (!conversationId || !content || !senderId) {
             console.error(
-              "[WebSocket] Invalid message payload:",
-              message.payload,
+              "[WebSocket] Invalid DM payload:",
+              message.payload
             );
             return;
           }
 
           try {
-            // Insert the direct message with files
+            // Insert the direct message (including parentId if it's a reply)
             const [newMessage] = await db
               .insert(directMessages)
               .values({
                 conversationId,
                 content,
                 senderId,
-                files: files || [], // Include files array
+                files: files || [],
+                parentId: parentId || null,
               })
               .returning();
+            console.log("[WebSocket] Insert result:", newMessage);
 
             if (newMessage) {
-              // Get the sender's data
+              // Fetch sender's data
               const [userData] = await db
                 .select({
                   id: users.id,
@@ -90,6 +102,7 @@ export function setupWebSocket(server: Server) {
                 .where(eq(users.id, senderId))
                 .limit(1);
 
+              // Update conversation's lastMessageAt
               await db
                 .update(directMessageConversations)
                 .set({ lastMessageAt: new Date() })
@@ -97,34 +110,25 @@ export function setupWebSocket(server: Server) {
 
               // Get conversation participants
               const participants = await db
-                .select({
-                  userId: directMessageParticipants.userId,
-                })
+                .select({ userId: directMessageParticipants.userId })
                 .from(directMessageParticipants)
-                .where(
-                  eq(directMessageParticipants.conversationId, conversationId),
-                );
+                .where(eq(directMessageParticipants.conversationId, conversationId));
 
-              // Create a set of participant IDs for efficient lookup
               const participantIds = new Set(participants.map((p) => p.userId));
 
-              // Send back message_created type to match client expectation
+              // Build the WS response
               const response = {
                 type: "message_created",
                 payload: {
                   message: {
                     ...newMessage,
-                    files: newMessage.files || [], // Ensure files from DB are included
+                    files: newMessage.files || [],
                   },
                   user: userData,
                 },
               };
 
-              // Broadcast to all participants
-              console.log(
-                "[WebSocket] Broadcasting to participants:",
-                Array.from(participantIds),
-              );
+              // Broadcast to all participants in the conversation
               let delivered = 0;
               for (const client of clients) {
                 if (
@@ -132,32 +136,30 @@ export function setupWebSocket(server: Server) {
                   client.userId &&
                   participantIds.has(client.userId)
                 ) {
-                  console.log(
-                    `[WebSocket] Delivering to user ${client.userId}`,
-                  );
                   client.send(JSON.stringify(response));
                   delivered++;
                 }
               }
               console.log(
-                `[WebSocket] Message delivered to ${delivered} participants`,
+                `[WebSocket] DM delivered to ${delivered} participants`
               );
             }
           } catch (error) {
-            console.error(
-              "[WebSocket] Failed to create direct message:",
-              error,
-            );
+            console.error("[WebSocket] Failed to create direct message:", error);
             extWs.send(
               JSON.stringify({
                 type: "error",
                 payload: { message: "Failed to create message" },
-              }),
+              })
             );
           }
+
         } else if (message.type === "message_reaction") {
           const { messageId, reaction, userId, isDM } = message.payload;
+          if (!userId || !reaction || !messageId) return;
+
           try {
+            // DM reaction
             if (isDM) {
               const [existingMessage] = await db
                 .select()
@@ -165,102 +167,109 @@ export function setupWebSocket(server: Server) {
                 .where(eq(directMessages.id, messageId))
                 .limit(1);
 
-              if (existingMessage) {
-                const reactions = existingMessage.reactions || {};
-                if (!reactions[reaction]) {
-                  reactions[reaction] = [];
-                }
-                if (!reactions[reaction].includes(userId)) {
-                  reactions[reaction].push(userId);
-                } else {
-                  reactions[reaction] = reactions[reaction].filter(
-                    (id: number) => id !== userId,
-                  );
-                }
+              if (!existingMessage) return;
 
-                const [updatedMessage] = await db
-                  .update(directMessages)
-                  .set({ reactions })
-                  .where(eq(directMessages.id, messageId))
-                  .returning();
+              const reactions = existingMessage.reactions || {};
+              if (!reactions[reaction]) {
+                reactions[reaction] = [];
+              }
+              if (!reactions[reaction].includes(userId)) {
+                reactions[reaction].push(userId);
+              } else {
+                reactions[reaction] = reactions[reaction].filter(
+                  (id: number) => id !== userId
+                );
+              }
 
-                const response = {
-                  type: "message_reaction_updated",
-                  payload: { messageId, reactions: updatedMessage.reactions },
-                };
+              const [updatedMessage] = await db
+                .update(directMessages)
+                .set({ reactions })
+                .where(eq(directMessages.id, messageId))
+                .returning();
 
-                // Get conversation participants
-                const participants = await db
-                  .select({
-                    userId: directMessageParticipants.userId,
-                  })
-                  .from(directMessageParticipants)
-                  .where(
-                    eq(directMessageParticipants.conversationId, existingMessage.conversationId),
-                  );
+              const response = {
+                type: "message_reaction_updated",
+                payload: {
+                  messageId,
+                  reactions: updatedMessage.reactions,
+                },
+              };
 
-                // Create a set of participant IDs for efficient lookup
-                const participantIds = new Set(participants.map((p) => p.userId));
+              // Get conversation participants
+              const participants = await db
+                .select({ userId: directMessageParticipants.userId })
+                .from(directMessageParticipants)
+                .where(
+                  eq(directMessageParticipants.conversationId, existingMessage.conversationId)
+                );
 
-                // Send only to conversation participants
-                for (const client of clients) {
-                  if (
-                    client.readyState === WebSocket.OPEN &&
-                    client.userId &&
-                    participantIds.has(client.userId)
-                  ) {
-                    client.send(JSON.stringify(response));
-                  }
+              const participantIds = new Set(participants.map((p) => p.userId));
+
+              // Broadcast reaction update to conversation participants
+              for (const client of clients) {
+                if (
+                  client.readyState === WebSocket.OPEN &&
+                  client.userId &&
+                  participantIds.has(client.userId)
+                ) {
+                  client.send(JSON.stringify(response));
                 }
               }
+
             } else {
+              // Channel reaction
               const [existingMessage] = await db
                 .select()
                 .from(messages)
                 .where(eq(messages.id, messageId))
                 .limit(1);
 
-              if (existingMessage) {
-                const reactions = existingMessage.reactions || {};
-                if (!reactions[reaction]) {
-                  reactions[reaction] = [];
-                }
-                if (!reactions[reaction].includes(userId)) {
-                  reactions[reaction].push(userId);
-                } else {
-                  reactions[reaction] = reactions[reaction].filter(
-                    (id: number) => id !== userId,
-                  );
-                }
+              if (!existingMessage) return;
 
-                const [updatedMessage] = await db
-                  .update(messages)
-                  .set({ reactions })
-                  .where(eq(messages.id, messageId))
-                  .returning();
+              const reactions = existingMessage.reactions || {};
+              if (!reactions[reaction]) {
+                reactions[reaction] = [];
+              }
+              if (!reactions[reaction].includes(userId)) {
+                reactions[reaction].push(userId);
+              } else {
+                reactions[reaction] = reactions[reaction].filter(
+                  (id: number) => id !== userId
+                );
+              }
 
-                const response = {
-                  type: "message_reaction_updated",
-                  payload: { messageId, reactions: updatedMessage.reactions },
-                };
+              const [updatedMessage] = await db
+                .update(messages)
+                .set({ reactions })
+                .where(eq(messages.id, messageId))
+                .returning();
 
-                for (const client of clients) {
-                  if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify(response));
-                  }
+              const response = {
+                type: "message_reaction_updated",
+                payload: {
+                  messageId,
+                  reactions: updatedMessage.reactions,
+                },
+              };
+
+              // Broadcast to all connected clients
+              for (const client of clients) {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(response));
                 }
               }
             }
           } catch (error) {
             console.error("[WebSocket] Failed to update reaction:", error);
           }
+
         } else if (message.type === "new_message") {
+          // Channel message
           const { channelId, content, userId, parentId, files } = message.payload;
           if (!channelId || !content || !userId) return;
 
           try {
-            console.log("[WebSocket] Creating new message with files:", files);
-            // Insert the message
+            console.log("[WebSocket] Creating new channel message with files:", files);
             const [newMessage] = await db
               .insert(messages)
               .values({
@@ -268,12 +277,11 @@ export function setupWebSocket(server: Server) {
                 content,
                 userId,
                 parentId: parentId || null,
-                files: files || [], // Include files array
+                files: files || [],
               })
               .returning();
 
             if (newMessage) {
-              // Fetch user data for the response
               const [userData] = await db
                 .select({
                   id: users.id,
@@ -285,22 +293,20 @@ export function setupWebSocket(server: Server) {
                 .limit(1);
 
               if (userData) {
-                // Send back message_created type to match client expectation
                 const response = {
                   type: "message_created",
                   payload: {
                     message: {
                       ...newMessage,
-                      files: newMessage.files || [], // Include files in the response
+                      files: newMessage.files || [],
                     },
                     user: userData,
                   },
                 };
 
-                // Broadcast to all clients
+                // Broadcast to all connected clients
                 for (const client of clients) {
                   if (client.readyState === WebSocket.OPEN) {
-                    console.log("[WebSocket] Sending to client:", response);
                     client.send(JSON.stringify(response));
                   }
                 }
@@ -312,7 +318,7 @@ export function setupWebSocket(server: Server) {
               JSON.stringify({
                 type: "error",
                 payload: { message: "Failed to create message" },
-              }),
+              })
             );
           }
         }

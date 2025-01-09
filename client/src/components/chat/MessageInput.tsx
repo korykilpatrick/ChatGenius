@@ -20,7 +20,11 @@ type FilePreview = {
   size: number;
 };
 
-export default function MessageInput({ channelId, conversationId, parentId }: MessageInputProps) {
+export default function MessageInput({
+  channelId,
+  conversationId,
+  parentId,
+}: MessageInputProps) {
   const [content, setContent] = useState("");
   const [files, setFiles] = useState<FilePreview[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -34,7 +38,7 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
 
     setIsUploading(true);
     const formData = new FormData();
-    Array.from(e.target.files).forEach(file => {
+    Array.from(e.target.files).forEach((file) => {
       formData.append("files", file);
     });
 
@@ -49,11 +53,12 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
       }
 
       const data = await response.json();
-      setFiles(prev => [...prev, ...data.files]);
+      setFiles((prev) => [...prev, ...data.files]);
     } catch (error) {
       toast({
         title: "Upload failed",
-        description: error instanceof Error ? error.message : "Failed to upload files",
+        description:
+          error instanceof Error ? error.message : "Failed to upload files",
         variant: "destructive",
       });
     } finally {
@@ -65,27 +70,34 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
   };
 
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || (!content.trim() && !files.length)) return;
-
+    console.log("Message was submitted!", conversationId, parentId);
     if (channelId) {
       sendMessage("new_message", {
         content: content.trim() || " ", // Send space if no content
         channelId,
         userId: user.id,
         parentId,
-        files: files.map(f => f.url)
+        files: files.map((f) => f.url),
       });
     } else if (conversationId) {
+      console.log(
+        "[MessageInput] Sending new_direct_message event:",
+        conversationId,
+        parentId,
+      );
+
       sendMessage("new_direct_message", {
-        content: content.trim() || " ", // Send space if no content
+        content: content.trim() || " ",
         conversationId,
         senderId: user.id,
-        files: files.map(f => f.url)
+        parentId,
+        files: files.map((f) => f.url),
       });
     }
 
@@ -151,7 +163,9 @@ export default function MessageInput({ channelId, conversationId, parentId }: Me
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
         >
-          <PaperclipIcon className={`h-5 w-5 ${isUploading ? 'animate-spin' : ''}`} />
+          <PaperclipIcon
+            className={`h-5 w-5 ${isUploading ? "animate-spin" : ""}`}
+          />
         </Button>
         <Textarea
           value={content}

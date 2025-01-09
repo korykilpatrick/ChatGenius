@@ -17,11 +17,13 @@ import {
 type MessageListProps = {
   channelId?: number;
   conversationId?: number;
-  onThreadSelect: (message: Message) => void;
+  // Updated so it can accept both channel and DM messages:
+  onThreadSelect: (message: Message | DirectMessageWithSender) => void;
 };
 
 const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
+// Union type for channel or DM messages
 type MessageType = Message | DirectMessageWithSender;
 
 export default function MessageList({
@@ -33,28 +35,32 @@ export default function MessageList({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const isInitialLoadRef = useRef(true);
   const { user } = useUser();
+  const { subscribe, sendMessage } = useWebSocket();
 
+  // Decide which queryKey to use: channel messages vs. DM messages
+  const queryKey = channelId
+    ? [`/api/channels/${channelId}/messages`]
+    : [`/api/dm/conversations/${conversationId}/messages`];
+
+  // Fetch the messages from the appropriate endpoint
   const { data: messages = [] } = useQuery<MessageType[]>({
-    queryKey: channelId
-      ? [`/api/channels/${channelId}/messages`]
-      : [`/api/dm/conversations/${conversationId}/messages`],
+    queryKey,
     enabled: !!channelId || !!conversationId,
   });
 
-  const { subscribe, sendMessage } = useWebSocket();
-
+  // Helper to scroll to the bottom
   const scrollToBottom = useCallback(() => {
     const scrollViewport = scrollAreaRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
+      "[data-radix-scroll-area-viewport]"
     ) as HTMLDivElement;
     if (scrollViewport) {
       requestAnimationFrame(() => {
         scrollViewport.scrollTop = scrollViewport.scrollHeight;
-        console.log("Scrolled to bottom, height:", scrollViewport.scrollHeight);
       });
     }
   }, []);
 
+  // Auto-scroll on initial load or when new messages arrive
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -64,93 +70,108 @@ export default function MessageList({
     }
   }, [messages, channelId, conversationId, scrollToBottom]);
 
+  // Handle incoming WebSocket messages for new messages and reaction updates
   const handleWebSocketMessage = useCallback(
-    (message: any) => {
-      if (message.type === "message_created") {
+    (wsMessage: any) => {
+      if (wsMessage.type === "message_created") {
+        // Determine if this new message is relevant to our current channel/DM
         const isRelevantMessage = channelId
-          ? message.payload.message.channelId === channelId
-          : message.payload.message.conversationId === conversationId;
+          ? wsMessage.payload.message.channelId === channelId
+          : wsMessage.payload.message.conversationId === conversationId;
 
         if (isRelevantMessage) {
-          const isReply = !!message.payload.message.parentId;
-
-          queryClient.setQueryData(
-            channelId
-              ? [`/api/channels/${channelId}/messages`]
-              : [`/api/dm/conversations/${conversationId}/messages`],
-            (oldData: MessageType[] = []) => {
-              if (!isReply) {
-                // Handle new top-level message
-                const newMessage = {
-                  ...message.payload.message,
-                  user: message.payload.user,
-                  sender: message.payload.user,
-                  replies: [], // Initialize empty replies array for new messages
-                };
-                const exists = oldData.some((msg) => msg.id === newMessage.id);
-                if (!exists) {
-                  setTimeout(scrollToBottom, 100);
-                  return [...oldData, newMessage];
-                }
-              } else {
-                // Handle new reply
-                return oldData.map((msg) => {
-                  if (msg.id === message.payload.message.parentId) {
-                    // Update parent message's replies
-                    return {
-                      ...msg,
-                      replies: [...(msg.replies || []), message.payload.message],
-                    };
-                  }
-                  return msg;
-                });
+          const isReply = !!wsMessage.payload.message.parentId;
+          queryClient.setQueryData(queryKey, (oldData: MessageType[] = []) => {
+            if (!isReply) {
+              // It's a new top-level message
+              const newMessage = {
+                ...wsMessage.payload.message,
+                user: wsMessage.payload.user,
+                sender: wsMessage.payload.user,
+                replies: [],
+              };
+              const exists = oldData.some((m) => m.id === newMessage.id);
+              if (!exists) {
+                setTimeout(scrollToBottom, 100);
+                return [...oldData, newMessage];
               }
-              return oldData;
-            },
-          );
+            } else {
+              // It's a reply -> find its parent message
+              return oldData.map((msg) => {
+                if (msg.id === wsMessage.payload.message.parentId) {
+                  return {
+                    ...msg,
+                    replies: [
+                      ...(msg.replies || []),
+                      {
+                        ...wsMessage.payload.message,
+                        user: wsMessage.payload.user,
+                        sender: wsMessage.payload.user,
+                      },
+                    ],
+                  };
+                }
+                return msg;
+              });
+            }
+            return oldData;
+          });
         }
-      } else if (message.type === "message_reaction_updated") {
-        const { messageId, reactions } = message.payload;
-        queryClient.setQueryData(
-          channelId
-            ? [`/api/channels/${channelId}/messages`]
-            : [`/api/dm/conversations/${conversationId}/messages`],
-          (oldData: MessageType[] = []) => {
-            return oldData.map((msg) =>
-              msg.id === messageId ? { ...msg, reactions } : msg,
-            );
-          },
-        );
+      } else if (wsMessage.type === "message_reaction_updated") {
+        // Reaction update for either channel or DM
+        const { messageId, reactions } = wsMessage.payload;
+        queryClient.setQueryData(queryKey, (oldData: MessageType[] = []) => {
+          return oldData.map((msg) => {
+            // Update if this is the message that got reacted
+            if (msg.id === messageId) {
+              return { ...msg, reactions };
+            }
+            // Also handle replies if needed
+            if (msg.replies && msg.replies.length > 0) {
+              return {
+                ...msg,
+                replies: msg.replies.map((r) =>
+                  r.id === messageId ? { ...r, reactions } : r
+                ),
+              };
+            }
+            return msg;
+          });
+        });
       }
     },
-    [channelId, conversationId, queryClient, scrollToBottom],
+    [channelId, conversationId, queryClient, queryKey, scrollToBottom]
   );
 
+  // Subscribe/unsubscribe to WebSocket events for this channel/DM
   useEffect(() => {
     if (!channelId && !conversationId) return;
     const unsubscribe = subscribe(handleWebSocketMessage);
     return () => unsubscribe();
   }, [channelId, conversationId, subscribe, handleWebSocketMessage]);
 
+  // Reaction sender
   const handleReaction = useCallback(
     (messageId: number, reaction: string) => {
+      if (!user) return;
       const payload: any = {
         messageId,
         reaction,
-        userId: user?.id, // Include userId in the payload
+        userId: user.id,
       };
+      // If a DM, set isDM = true so the server updates directMessages
       if (conversationId) {
         payload.isDM = true;
       }
       sendMessage("message_reaction", payload);
     },
-    [sendMessage, conversationId, user?.id],
+    [user, conversationId, sendMessage]
   );
 
+  // File preview logic
   const renderFileAttachment = (file: string) => {
     const filePath = file.startsWith("/") ? file : `/uploads/${file}`;
     const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
-
     if (isImage) {
       return (
         <div className="mt-2 relative group">
@@ -171,7 +192,6 @@ export default function MessageList({
         </div>
       );
     }
-
     return (
       <div className="mt-2">
         <a
@@ -186,8 +206,9 @@ export default function MessageList({
     );
   };
 
+  // Sort messages chronologically
   const sortedMessages = [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
   return (
@@ -199,15 +220,12 @@ export default function MessageList({
           </div>
         ) : (
           sortedMessages.map((message) => {
-            const messageUser =
-              "user" in message ? message.user : message.sender;
+            // For channels => message.user, for DMs => message.sender
+            const messageUser = "user" in message ? message.user : message.sender;
             if (!messageUser) return null;
 
             return (
-              <div
-                key={message.id}
-                className="group message-row message-row-hover"
-              >
+              <div key={message.id} className="group message-row message-row-hover">
                 <div className="flex items-start gap-3">
                   <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src={messageUser.avatar || undefined} />
@@ -218,48 +236,45 @@ export default function MessageList({
                   <div className="flex-1">
                     <div className="message-bubble">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold">
-                          {messageUser.username}
-                        </span>
+                        <span className="font-semibold">{messageUser.username}</span>
                         <span className="text-xs opacity-70">
                           {format(new Date(message.createdAt), "p")}
                         </span>
                       </div>
                       <p className="text-sm break-words">{message.content}</p>
+
                       {message.files && message.files.length > 0 && (
                         <div className="space-y-2">
-                          {message.files.map((file: string, index: number) => (
-                            <div key={index}>{renderFileAttachment(file)}</div>
+                          {message.files.map((file: string, idx: number) => (
+                            <div key={idx}>{renderFileAttachment(file)}</div>
                           ))}
                         </div>
                       )}
+
                       {message.reactions &&
-                        Object.entries(
-                          message.reactions as Record<string, number[]>,
-                        ).length > 0 && (
+                        Object.entries(message.reactions).length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {Object.entries(
-                              message.reactions as Record<string, number[]>,
-                            ).map(
-                              ([reaction, userIds]) =>
-                                userIds.length > 0 && (
-                                  <Button
-                                    key={reaction}
-                                    variant="secondary"
-                                    size="sm"
-                                    className="h-6 text-xs"
-                                    onClick={() =>
-                                      handleReaction(message.id, reaction)
-                                    }
-                                  >
-                                    {reaction} {userIds.length}
-                                  </Button>
-                                ),
+                              message.reactions as Record<string, number[]>
+                            ).map(([reaction, userIds]) =>
+                              userIds.length > 0 ? (
+                                <Button
+                                  key={reaction}
+                                  variant="secondary"
+                                  size="sm"
+                                  className="h-6 text-xs"
+                                  onClick={() => handleReaction(message.id, reaction)}
+                                >
+                                  {reaction} {userIds.length}
+                                </Button>
+                              ) : null
                             )}
                           </div>
                         )}
                     </div>
                   </div>
+
+                  {/* Reaction + Thread icons */}
                   <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -274,9 +289,7 @@ export default function MessageList({
                               key={reaction}
                               variant="ghost"
                               className="h-8 w-8 p-0"
-                              onClick={() =>
-                                handleReaction(message.id, reaction)
-                              }
+                              onClick={() => handleReaction(message.id, reaction)}
                             >
                               {reaction}
                             </Button>
@@ -284,30 +297,31 @@ export default function MessageList({
                         </div>
                       </PopoverContent>
                     </Popover>
-                    {channelId && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => onThreadSelect(message as Message)}
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {channelId &&
-                  "replies" in message &&
-                  message.replies &&
-                  message.replies.length > 0 && (
+
+                    {/* Show thread button for both channels AND DMs */}
                     <Button
                       variant="ghost"
-                      className="ml-12 mt-2 text-xs"
-                      onClick={() => onThreadSelect(message as Message)}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onThreadSelect(message)}
                     >
-                      {message.replies.length} replies
+                      <MessageSquare className="h-4 w-4" />
                     </Button>
-                  )}
+                  </div>
+                </div>
+
+                {/* "X replies" label. 
+                    For channels => message.replies
+                    For DMs => also store replies in message.replies if you want the same approach */}
+                {message.replies && message.replies.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    className="ml-12 mt-2 text-xs"
+                    onClick={() => onThreadSelect(message)}
+                  >
+                    {message.replies.length} {message.replies.length === 1 ? "reply" : "replies"}
+                  </Button>
+                )}
               </div>
             );
           })
