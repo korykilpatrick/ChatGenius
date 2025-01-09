@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Plus, Hash } from "lucide-react";
+import { Plus, Hash, ChevronRight, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
@@ -9,6 +9,11 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useWebSocket } from "@/hooks/use-websocket";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { Channel } from "@db/schema";
 
 const channelSchema = z.object({
@@ -26,6 +31,7 @@ type ChannelListProps = {
 
 export default function ChannelList({ selectedChannel, onSelectChannel }: ChannelListProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
 
@@ -75,63 +81,70 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
 
   return (
     <div className="px-2">
-      <div className="flex items-center justify-between py-2">
-        <h2 className="font-semibold text-sidebar-foreground px-2">Channels</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-sidebar-foreground">
-              <Plus className="h-4 w-4" />
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <div className="flex items-center justify-between py-2">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-6 w-6">
+              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create Channel</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(createChannel)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Channel Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="general" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description (Optional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="What's this channel about?" />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full">Create Channel</Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      <div className="space-y-[2px]">
-        {channels.map((channel) => (
-          <Button
-            key={channel.id}
-            variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-            className="w-full justify-start"
-            onClick={() => onSelectChannel(channel.id)}
-          >
-            <Hash className="h-4 w-4 mr-2" />
-            {channel.name}
-          </Button>
-        ))}
-      </div>
+          </CollapsibleTrigger>
+          <h2 className="font-semibold text-sidebar-foreground flex-1 px-2">Channels</h2>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-sidebar-foreground h-6 w-6">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Channel</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(createChannel)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Channel Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="general" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="What's this channel about?" />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full">Create Channel</Button>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <CollapsibleContent className="space-y-[2px]">
+          {channels.map((channel) => (
+            <Button
+              key={channel.id}
+              variant={selectedChannel === channel.id ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => onSelectChannel(channel.id)}
+            >
+              <Hash className="h-4 w-4 mr-2" />
+              {channel.name}
+            </Button>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
