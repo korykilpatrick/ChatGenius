@@ -14,7 +14,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { Message } from "@db/schema";
 
 export default function ChatPage() {
-  const [selectedChannel, setSelectedChannel] = useState<number | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<number | null>(1); // Channel ID 1 is #general
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
   const { user } = useUser();
   const { isConnected } = useWebSocket();
