@@ -31,6 +31,7 @@ export default function MessageList({
 }: MessageListProps) {
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const isInitialLoadRef = useRef(true);
   const { user } = useUser();
 
   const { data: messages = [] } = useQuery<MessageType[]>({
@@ -49,6 +50,7 @@ export default function MessageList({
     if (scrollViewport) {
       requestAnimationFrame(() => {
         scrollViewport.scrollTop = scrollViewport.scrollHeight;
+        console.log("Scrolled to bottom, height:", scrollViewport.scrollHeight);
       });
     }
   }, []);
@@ -81,8 +83,8 @@ export default function MessageList({
                   setTimeout(scrollToBottom, 100);
                   return [...oldData, newMessage];
                 }
-              } else if (channelId) {
-                // Handle new reply (only for channels)
+              } else {
+                // Handle new reply
                 return oldData.map(msg => {
                   if (msg.id === message.payload.message.parentId) {
                     // Update parent message's replies
@@ -188,7 +190,8 @@ export default function MessageList({
           </div>
         ) : (
           sortedMessages.map((message) => {
-            const messageUser = "user" in message ? message.user : message.sender;
+            const messageUser =
+              "user" in message ? message.user : message.sender;
             if (!messageUser) return null;
 
             return (
@@ -272,7 +275,6 @@ export default function MessageList({
                         </div>
                       </PopoverContent>
                     </Popover>
-                    {/* Only show thread button for channel messages */}
                     {channelId && (
                       <Button
                         variant="ghost"
@@ -285,7 +287,6 @@ export default function MessageList({
                     )}
                   </div>
                 </div>
-                {/* Only show reply count for channel messages */}
                 {channelId &&
                   "replies" in message &&
                   message.replies &&
@@ -295,7 +296,7 @@ export default function MessageList({
                       className="ml-12 mt-2 text-xs"
                       onClick={() => onThreadSelect(message as Message)}
                     >
-                      {message.replies.length} {message.replies.length === 1 ? 'reply' : 'replies'}
+                      {message.replies.length} replies
                     </Button>
                   )}
               </div>
