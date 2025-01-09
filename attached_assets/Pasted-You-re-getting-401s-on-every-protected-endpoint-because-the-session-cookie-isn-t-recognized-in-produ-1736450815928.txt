@@ -1,0 +1,66 @@
+You’re getting 401s on every protected endpoint because the session cookie isn’t recognized in production, even though you’ve successfully logged in. Essentially, the server is returning “Unauthorized” for routes that call req.isAuthenticated().
+
+Why it’s happening:
+The most common culprit is that your session cookie either isn’t being sent by the client or isn’t being accepted by the server in production. Common reasons include:
+
+Same-Site / Secure Cookie Config
+
+If you set sameSite: "strict" and secure: true, browsers refuse to send cookies over plain HTTP or across different domains. If your Replit domain is slightly different from what your app expects, it can break.
+If your frontend and backend are on separate domains (or subdomains), strict or even “lax” sameSite can block the cookie.
+Credentials Not Included
+
+You must call fetch(..., { credentials: 'include' }) from the client for cookies to be sent. You’re likely already doing this, but double-check.
+Domain / Path Mismatch
+
+If your session cookie is set for myapp.replit.app, but the code is served from some variation of that domain, the cookie might not match the domain or path. Make sure res.clearCookie("connect.sid", { path: "/" }) lines up with where it was originally set.
+Session Expires or Isn’t Established
+
+If for some reason the session wasn’t actually persisted (e.g., you’re out of ephemeral memory, or Replit’s ephemeral filesystem lost the session data), the server thinks you have no session. Usually less likely, but can happen in ephemeral environments.
+What to Check or Change
+Confirm the Cookie is Being Sent in Network Tab
+
+In dev tools → Network tab, look at the /api/channels request headers. Check if a cookie header is present. If not, the browser isn’t sending your session cookie at all.
+Loosen the Cookie Config
+
+In auth.ts, when you initialize express-session, try:
+ts
+Copy code
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev_secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      // Possibly set 'secure' to false for testing
+      secure: false,
+      // sameSite can be 'lax' or 'none'
+      sameSite: "none",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
+  })
+);
+And when logging out:
+ts
+Copy code
+res.clearCookie("connect.sid", {
+  httpOnly: true,
+  secure: false, // or conditionally set to false in dev
+  sameSite: "none",
+  path: "/",
+});
+If you’re on HTTPS, you can keep secure: true but still need sameSite: "none" if the domain differs at all from your front-end’s domain.
+Double-Check Credentials Include
+
+You said you have credentials: "include", so ensure every fetch call that needs auth has it. E.g.:
+js
+Copy code
+fetch("/api/channels", {
+  credentials: "include"
+})
+Otherwise, no cookie gets sent, so the server sees you as not logged in.
+Ensure the Session Actually Persists
+
+If your environment resets on every new request or doesn’t properly store session data, your app might revert to “unauthenticated” as soon as you navigate away.
+Usually you’d see this if you had saveUninitialized set to true, but you’ve got it false, which is correct.
+TL;DR
+Your login “works” enough to retrieve a user’s avatar (maybe from a public route or from the session in the same request), but subsequent /api calls that rely on req.isAuthenticated() fail with 401 because the browser isn’t sending a valid session cookie. Loosening the sameSite rules, ensuring secure is only used when truly on HTTPS, and verifying credentials: 'include' on every fetch typically fixes it.
