@@ -9,10 +9,11 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
 import MessageInput from "@/components/chat/MessageInput";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
+import { Download, Smile } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Smile } from "lucide-react"; // Assuming this is where Smile icon is imported from
 
+// Assuming REACTIONS is defined elsewhere, e.g., in a constants file
+const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
 interface Message {
   id: number;
@@ -20,6 +21,7 @@ interface Message {
   createdAt: string;
   senderId: number;
   files?: string[];
+  reactions?: Record<string, number[]>;
   sender: {
     id: number;
     username: string;
@@ -40,17 +42,13 @@ interface Conversation {
   };
 }
 
-// Assuming REACTIONS is defined elsewhere, e.g., in a constants file
-const REACTIONS = ["👍", "👎", "😂", "❤️", "🤔"];
-
-
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
   const otherUserId = params?.id ? parseInt(params.id) : null;
-  const { subscribe, sendMessage } = useWebSocket(); //sendMessage added here
+  const { subscribe, sendMessage } = useWebSocket();
 
   const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
@@ -104,6 +102,20 @@ export default function DirectMessagePage() {
             return exists ? oldData : [...oldData, newMessage];
           }
         );
+      } else if (message.type === "message_reaction_updated" && 
+                message.payload.messageId && 
+                message.payload.reactions) {
+        // Handle reaction updates
+        queryClient.setQueryData(
+          [`/api/dm/conversations/${conversation.conversation.id}/messages`],
+          (oldData: Message[] = []) => {
+            return oldData.map(msg =>
+              msg.id === message.payload.messageId
+                ? { ...msg, reactions: message.payload.reactions }
+                : msg
+            );
+          }
+        );
       }
     };
 
@@ -130,6 +142,17 @@ export default function DirectMessagePage() {
   }
 
   const { participant } = conversation;
+
+  const handleReaction = (messageId: number, reaction: string) => {
+    if (!currentUser) return;
+
+    sendMessage("message_reaction", {
+      messageId,
+      reaction,
+      userId: currentUser.id,
+      isDM: true,
+    });
+  };
 
   const renderFileAttachment = (file: string) => {
     const filePath = file.startsWith('/') ? file : `/uploads/${file}`;
@@ -201,7 +224,7 @@ export default function DirectMessagePage() {
             sortedMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex gap-2 ${
+                className={`group flex gap-2 ${
                   msg.sender.id === currentUser.id ? "justify-end" : ""
                 }`}
               >
@@ -214,7 +237,7 @@ export default function DirectMessagePage() {
                   </Avatar>
                 )}
                 <div
-                  className={`max-w-[70%] ${
+                  className={`relative max-w-[70%] ${
                     msg.sender.id === currentUser.id
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
@@ -226,6 +249,27 @@ export default function DirectMessagePage() {
                     </span>
                   </div>
                   <p className="text-sm break-words">{msg.content}</p>
+
+                  {/* Display existing reactions */}
+                  {msg.reactions && Object.entries(msg.reactions).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {Object.entries(msg.reactions).map(([reaction, userIds]) => (
+                        userIds.length > 0 && (
+                          <Button
+                            key={reaction}
+                            variant="secondary"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => handleReaction(msg.id, reaction)}
+                          >
+                            {reaction} {userIds.length}
+                          </Button>
+                        )
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Reaction button */}
                   <div className="opacity-0 group-hover:opacity-100 mt-2">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -240,14 +284,7 @@ export default function DirectMessagePage() {
                               key={reaction}
                               variant="ghost"
                               className="h-8 w-8 p-0"
-                              onClick={() =>
-                                sendMessage("message_reaction", {
-                                  messageId: msg.id,
-                                  reaction,
-                                  userId: currentUser.id,
-                                  isDM: true,
-                                })
-                              }
+                              onClick={() => handleReaction(msg.id, reaction)}
                             >
                               {reaction}
                             </Button>
@@ -256,6 +293,8 @@ export default function DirectMessagePage() {
                       </PopoverContent>
                     </Popover>
                   </div>
+
+                  {/* File attachments */}
                   {msg.files && msg.files.length > 0 && (
                     <div className="space-y-2">
                       {msg.files.map((file, index) => (
