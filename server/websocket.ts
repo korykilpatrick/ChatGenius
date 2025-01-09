@@ -156,68 +156,13 @@ export function setupWebSocket(server: Server) {
             );
           }
         } else if (message.type === "message_reaction") {
-          const { messageId, reaction, userId, isDM } = message.payload;
+          const { messageId, reaction, userId } = message.payload;
           try {
-            if (isDM) {
-              const [existingMessage] = await db
-                .select()
-                .from(directMessages)
-                .where(eq(directMessages.id, messageId))
-                .limit(1);
-
-              if (existingMessage) {
-                const reactions = existingMessage.reactions || {};
-                if (!reactions[reaction]) {
-                  reactions[reaction] = [];
-                }
-                if (!reactions[reaction].includes(userId)) {
-                  reactions[reaction].push(userId);
-                } else {
-                  reactions[reaction] = reactions[reaction].filter(
-                    (id: number) => id !== userId,
-                  );
-                }
-
-                const [updatedMessage] = await db
-                  .update(directMessages)
-                  .set({ reactions })
-                  .where(eq(directMessages.id, messageId))
-                  .returning();
-
-                // Get conversation participants
-                const participants = await db
-                  .select({
-                    userId: directMessageParticipants.userId,
-                  })
-                  .from(directMessageParticipants)
-                  .where(
-                    eq(directMessageParticipants.conversationId, existingMessage.conversationId),
-                  );
-
-                const participantIds = new Set(participants.map((p) => p.userId));
-
-                const response = {
-                  type: "message_reaction_updated",
-                  payload: { messageId, reactions: updatedMessage.reactions },
-                };
-
-                // Send to conversation participants only
-                for (const client of clients) {
-                  if (
-                    client.readyState === WebSocket.OPEN &&
-                    client.userId &&
-                    participantIds.has(client.userId)
-                  ) {
-                    client.send(JSON.stringify(response));
-                  }
-                }
-              }
-            } else {
-              const [existingMessage] = await db
-                .select()
-                .from(messages)
-                .where(eq(messages.id, messageId))
-                .limit(1);
+            const [existingMessage] = await db
+              .select()
+              .from(messages)
+              .where(eq(messages.id, messageId))
+              .limit(1);
 
             if (existingMessage) {
               const reactions = existingMessage.reactions || {};
