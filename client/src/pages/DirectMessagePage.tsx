@@ -8,12 +8,15 @@ import { useUser } from "@/hooks/use-user";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { format } from "date-fns";
 import MessageInput from "@/components/chat/MessageInput";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 interface Message {
   id: number;
   content: string;
   createdAt: string;
   senderId: number;
+  files?: string[];
   sender: {
     id: number;
     username: string;
@@ -81,8 +84,8 @@ export default function DirectMessagePage() {
     if (!conversation?.conversation?.id) return;
 
     const handleWebSocketMessage = (message: any) => {
-      if (message.type === "message_created" && 
-          message.payload.message.conversationId === conversation.conversation.id) {
+      if (message.type === "message_created" &&
+        message.payload.message.conversationId === conversation.conversation.id) {
         queryClient.setQueryData(
           [`/api/dm/conversations/${conversation.conversation.id}/messages`],
           (oldData: Message[] = []) => {
@@ -120,6 +123,45 @@ export default function DirectMessagePage() {
   }
 
   const { participant } = conversation;
+
+  const renderFileAttachment = (file: string) => {
+    const filePath = file.startsWith('/') ? file : `/uploads/${file}`;
+    const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
+
+    if (isImage) {
+      return (
+        <div className="mt-2 relative group">
+          <img
+            src={filePath}
+            alt="Attached file"
+            className="max-h-48 rounded-lg object-contain"
+          />
+          <a
+            href={filePath}
+            download
+            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Button variant="secondary" size="icon" className="h-8 w-8">
+              <Download className="h-4 w-4" />
+            </Button>
+          </a>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-2">
+        <a
+          href={filePath}
+          download
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <Download className="h-4 w-4" />
+          {filePath.split('/').pop()}
+        </a>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-screen">
@@ -177,6 +219,15 @@ export default function DirectMessagePage() {
                     </span>
                   </div>
                   <p className="text-sm break-words">{msg.content}</p>
+                  {msg.files && msg.files.length > 0 && (
+                    <div className="space-y-2">
+                      {msg.files.map((file, index) => (
+                        <div key={index}>
+                          {renderFileAttachment(file)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))
