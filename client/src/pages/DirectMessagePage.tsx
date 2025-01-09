@@ -37,7 +37,7 @@ export default function DirectMessagePage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="border-b h-14 flex items-center px-4 justify-between bg-background">
+      <header className="border-b h-14 flex-shrink-0 flex items-center px-4 justify-between bg-background">
         <div className="flex items-center gap-2">
           <Avatar>
             <AvatarImage src={participant.avatar || undefined} />
@@ -54,8 +54,10 @@ export default function DirectMessagePage() {
         </Link>
       </header>
 
-      <MessageList conversationId={conversation.conversation.id} onThreadSelect={() => {}} />
-      <MessageInput conversationId={conversation.conversation.id} />
+      <div className="flex-1 flex flex-col min-h-0">
+        <MessageList conversationId={conversation.conversation.id} onThreadSelect={() => {}} />
+        <MessageInput conversationId={conversation.conversation.id} />
+      </div>
     </div>
   );
 }
