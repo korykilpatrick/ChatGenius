@@ -39,14 +39,24 @@ export default function MessageList({
 
   const { subscribe, sendMessage } = useWebSocket();
 
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     if (scrollAreaRef.current) {
       const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollElement) {
         scrollElement.scrollTop = scrollElement.scrollHeight;
       }
     }
-  }, [messages]);
+  }, []);
+
+  // Initial scroll to bottom when component mounts and messages are loaded
+  useEffect(() => {
+    scrollToBottom();
+  }, [scrollToBottom]);
+
+  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   const handleWebSocketMessage = useCallback(
     (message: any) => {
@@ -66,7 +76,11 @@ export default function MessageList({
                 user: message.payload.user,
               };
               const exists = oldData.some((msg) => msg.id === newMessage.id);
-              return exists ? oldData : [...oldData, newMessage];
+              if (!exists) {
+                setTimeout(scrollToBottom, 100); // Scroll after message is rendered
+                return [...oldData, newMessage];
+              }
+              return oldData;
             }
           );
         }
@@ -84,7 +98,7 @@ export default function MessageList({
         );
       }
     },
-    [channelId, conversationId, queryClient]
+    [channelId, conversationId, queryClient, scrollToBottom]
   );
 
   useEffect(() => {
