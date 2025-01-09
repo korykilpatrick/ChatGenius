@@ -205,7 +205,7 @@ export default function MessageList({
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
           {sortedMessages.map((message) => (
-            <div key={message.id} className="group">
+            <div key={message.id} className="group message-row message-row-hover">
               <div className="flex items-start gap-3">
                 <Avatar>
                   <AvatarImage src={message.user.avatar || undefined} />

@@ -113,7 +113,11 @@
            transition-colors duration-200;
   }
 
-  .message-bubble-hover {
+  .message-row {
+    @apply px-2 -mx-2 rounded-lg transition-colors duration-200;
+  }
+
+  .message-row-hover {
     @apply hover:bg-gray-100 dark:hover:bg-muted/20;
   }
 

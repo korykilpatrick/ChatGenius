@@ -232,7 +232,7 @@ export default function DirectMessagePage() {
             sortedMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`group flex gap-2 ${
+                className={`group message-row message-row-hover flex gap-2 ${
                   msg.sender.id === currentUser.id ? "justify-end" : ""
                 }`}
               >
@@ -244,9 +244,7 @@ export default function DirectMessagePage() {
                     </AvatarFallback>
                   </Avatar>
                 )}
-                <div
-                  className={messageClassName(msg.sender.id === currentUser.id)}
-                >
+                <div className={messageClassName(msg.sender.id === currentUser.id)}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs opacity-70">
                       {format(new Date(msg.createdAt), "PP p")}
@@ -272,31 +270,6 @@ export default function DirectMessagePage() {
                       ))}
                     </div>
                   )}
-
-                  {/* Reaction button */}
-                  <div className="opacity-0 group-hover:opacity-100 mt-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Smile className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-2" align="start">
-                        <div className="grid grid-cols-4 gap-2">
-                          {REACTIONS.map((reaction) => (
-                            <Button
-                              key={reaction}
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleReaction(msg.id, reaction)}
-                            >
-                              {reaction}
-                            </Button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
 
                   {/* File attachments */}
                   {msg.files && msg.files.length > 0 && (
