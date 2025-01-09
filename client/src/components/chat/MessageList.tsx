@@ -30,7 +30,6 @@ export default function MessageList({
   const queryClient = useQueryClient();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Fetch messages based on channel or conversation
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: channelId
       ? [`/api/channels/${channelId}/messages`]
@@ -38,9 +37,8 @@ export default function MessageList({
     enabled: !!channelId || !!conversationId,
   });
 
-  const { subscribe, sendMessage, isConnected } = useWebSocket();
+  const { subscribe, sendMessage } = useWebSocket();
 
-  // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
       const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -50,7 +48,6 @@ export default function MessageList({
     }
   }, [messages]);
 
-  // Handle real-time message updates
   const handleWebSocketMessage = useCallback(
     (message: any) => {
       if (message.type === "message_created") {
@@ -97,7 +94,6 @@ export default function MessageList({
     return () => unsubscribe();
   }, [channelId, conversationId, subscribe, handleWebSocketMessage]);
 
-  // Sort messages by creation date (oldest first)
   const sortedMessages = [...messages].sort((a, b) =>
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
@@ -110,7 +106,6 @@ export default function MessageList({
   );
 
   const renderFileAttachment = (file: string) => {
-    // Ensure file path starts with /uploads/
     const filePath = file.startsWith('/') ? file : `/uploads/${file}`;
     const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
 
@@ -149,18 +144,11 @@ export default function MessageList({
     );
   };
 
-  // Added currentUser for demonstration; replace with actual user data retrieval
-  const currentUser = { id: 1 }; // Replace with actual user ID retrieval
+  const currentUser = { id: 1 };
 
-  const renderMessage = (message) => (
+  const renderMessage = (message: Message) => (
     <div className="flex-1">
-      <div
-        className={`message-bubble message-bubble-hover ${
-          message.user.id === currentUser.id
-            ? "hover:bg-primary/10"
-            : ""
-        }`}
-      >
+      <div className="message-bubble">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs opacity-70">
             {format(new Date(message.createdAt), 'p')}
@@ -169,7 +157,7 @@ export default function MessageList({
         <p className="text-sm break-words">{message.content}</p>
         {message.files && message.files.length > 0 && (
           <div className="space-y-2">
-            {message.files.map((file, index) => (
+            {message.files.map((file: string, index: number) => (
               <div key={index}>
                 {renderFileAttachment(file)}
               </div>
@@ -177,23 +165,21 @@ export default function MessageList({
           </div>
         )}
         {message.reactions &&
-          Object.entries(
-            message.reactions as Record<string, number[]>,
-          ).length > 0 && (
+          Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
             <div className="flex gap-1 mt-2">
-              {Object.entries(
-                message.reactions as Record<string, number[]>,
-              ).map(([reaction, userIds]) => (
-                <Button
-                  key={reaction}
-                  variant="secondary"
-                  size="sm"
-                  className="h-6 text-xs"
-                  onClick={() => handleReaction(message.id, reaction)}
-                >
-                  {reaction} {userIds.length}
-                </Button>
-              ))}
+              {Object.entries(message.reactions as Record<string, number[]>).map(
+                ([reaction, userIds]) => (
+                  <Button
+                    key={reaction}
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => handleReaction(message.id, reaction)}
+                  >
+                    {reaction} {userIds.length}
+                  </Button>
+                )
+              )}
             </div>
           )}
       </div>

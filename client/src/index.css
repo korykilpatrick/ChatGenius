@@ -118,7 +118,7 @@
   }
 
   .message-row-hover {
-    @apply hover:bg-gray-100 dark:hover:bg-muted/20;
+    @apply hover:bg-gray-100 dark:hover:bg-zinc-800/50;
   }
 
   .message-input {
