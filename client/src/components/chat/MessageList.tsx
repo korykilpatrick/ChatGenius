@@ -67,21 +67,39 @@ export default function MessageList({
           ? message.payload.message.channelId === channelId
           : message.payload.message.conversationId === conversationId;
 
-        if (isRelevantMessage && !message.payload.message.parentId) {
+        if (isRelevantMessage) {
+          const isReply = !!message.payload.message.parentId;
+
           queryClient.setQueryData(
             channelId
               ? [`/api/channels/${channelId}/messages`]
               : [`/api/dm/conversations/${conversationId}/messages`],
             (oldData: MessageType[] = []) => {
-              const newMessage = {
-                ...message.payload.message,
-                user: message.payload.user,
-                sender: message.payload.user,
-              };
-              const exists = oldData.some((msg) => msg.id === newMessage.id);
-              if (!exists) {
-                setTimeout(scrollToBottom, 100);
-                return [...oldData, newMessage];
+              if (!isReply) {
+                // Handle new top-level message
+                const newMessage = {
+                  ...message.payload.message,
+                  user: message.payload.user,
+                  sender: message.payload.user,
+                  replies: [], // Initialize empty replies array for new messages
+                };
+                const exists = oldData.some((msg) => msg.id === newMessage.id);
+                if (!exists) {
+                  setTimeout(scrollToBottom, 100);
+                  return [...oldData, newMessage];
+                }
+              } else {
+                // Handle new reply
+                return oldData.map(msg => {
+                  if (msg.id === message.payload.message.parentId) {
+                    // Update parent message's replies
+                    return {
+                      ...msg,
+                      replies: [...(msg.replies || []), message.payload.message],
+                    };
+                  }
+                  return msg;
+                });
               }
               return oldData;
             }
