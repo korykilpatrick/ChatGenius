@@ -1,133 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 100% 50%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 215 20.2% 65.1%;
-
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 217.2 32.6% 17.5%;
-  }
-
   * {
     @apply border-border;
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground transition-colors duration-200;
+    @apply font-sans antialiased bg-background text-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
 
 @layer components {
-  /* Layout Components */
-  .chat-layout {
-    @apply grid h-screen;
-    grid-template-rows: auto 1fr;
-  }
-
-  .global-header {
-    @apply fixed top-0 left-0 right-0 h-14 px-4 
-           flex items-center justify-between 
-           bg-background/80 backdrop-blur-sm border-b z-50
-           transition-all duration-200
-           dark:bg-zinc-900/80 dark:border-zinc-800;
-  }
-
-  .chat-sidebar {
-    @apply w-[260px] h-full bg-muted/50 
-           border-r overflow-y-auto
-           transition-all duration-200
-           dark:bg-zinc-900 dark:border-zinc-800;
-  }
-
-  .chat-main {
-    @apply flex-1 flex flex-col min-w-0
-           bg-background overflow-hidden
-           dark:bg-zinc-900;
-  }
-
   /* Message Components */
   .message-bubble {
-    @apply p-3 rounded-lg max-w-[85%] break-words
-           transition-colors duration-200;
+    @apply rounded-lg break-words;
   }
 
   .message-row {
-    @apply px-2 -mx-2 rounded-lg transition-colors duration-200;
+    @apply px-4 py-2 -mx-4 flex flex-col
+           rounded-lg transition-colors duration-200;
   }
 
   .message-row-hover {
-    @apply hover:bg-gray-100 dark:hover:bg-zinc-800/50;
+    @apply hover:bg-muted/60 dark:hover:bg-zinc-800/50;
   }
 
   .message-input {
     @apply w-full min-h-[80px] p-3 
            rounded-lg border bg-background
-           focus-visible:outline-none focus-visible:ring-1
-           transition-all duration-200
-           dark:bg-zinc-800 dark:border-zinc-700
-           dark:focus-visible:ring-zinc-600;
+           focus-visible:outline-none focus-visible:ring-1;
   }
 
   /* User Components */
@@ -142,13 +46,6 @@
   .user-presence[data-status="offline"] {
     @apply bg-gray-400 dark:bg-gray-500;
   }
-
-  /* Interactive States */
-  .hover-highlight {
-    @apply transition-colors duration-200
-           hover:bg-muted/60 active:bg-muted/80
-           dark:hover:bg-zinc-800 dark:active:bg-zinc-700;
-  }
 }
 
 @layer utilities {
@@ -158,8 +55,7 @@
   }
 
   .text-timestamp {
-    @apply text-xs text-muted-foreground
-           dark:text-zinc-500;
+    @apply text-xs text-muted-foreground;
   }
 
   .shadow-subtle {
@@ -167,7 +63,6 @@
            dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)];
   }
 
-  /* Scrollbar styling */
   .custom-scrollbar {
     @apply scrollbar-thin scrollbar-thumb-muted-foreground/10 
            hover:scrollbar-thumb-muted-foreground/20

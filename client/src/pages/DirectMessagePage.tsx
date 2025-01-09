@@ -14,33 +14,6 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 
 const REACTIONS = ["👍", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
-interface Message {
-  id: number;
-  content: string;
-  createdAt: string;
-  senderId: number;
-  files?: string[];
-  reactions?: Record<string, number[]>;
-  sender: {
-    id: number;
-    username: string;
-    avatar: string | null;
-  };
-}
-
-interface Conversation {
-  conversation: {
-    id: number;
-    createdAt: string;
-    lastMessageAt: string;
-  };
-  participant: {
-    id: number;
-    username: string;
-    avatar: string | null;
-  };
-}
-
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { toast } = useToast();
@@ -178,7 +151,7 @@ export default function DirectMessagePage() {
           ) : (
             sortedMessages.map((msg) => (
               <div key={msg.id} className="group message-row message-row-hover">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 w-full">
                   {msg.sender.id !== currentUser.id && (
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={msg.sender.avatar || undefined} />
@@ -191,7 +164,7 @@ export default function DirectMessagePage() {
                     <div className="message-bubble">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs opacity-70">
-                          {format(new Date(msg.createdAt), "PP p")}
+                          {format(new Date(msg.createdAt), 'p')}
                         </span>
                       </div>
                       <p className="text-sm break-words">{msg.content}</p>
@@ -221,7 +194,7 @@ export default function DirectMessagePage() {
                       )}
                     </div>
                   </div>
-                  <div className="opacity-0 group-hover:opacity-100 flex items-center">
+                  <div className="opacity-0 group-hover:opacity-100">
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
