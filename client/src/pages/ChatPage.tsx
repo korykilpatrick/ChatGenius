@@ -1,7 +1,11 @@
 // ChatPage.tsx
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import ChannelList from "@/components/chat/ChannelList";
 import MessageList from "@/components/chat/MessageList";
 import MessageInput from "@/components/chat/MessageInput";
@@ -19,10 +23,6 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 
-/**
- * We’ll highlight channels with new messages via an unreadChannels set,
- * and also highlight DMs via an unreadDMConversations set.
- */
 export default function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<number | null>(1);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
@@ -31,16 +31,14 @@ export default function ChatPage() {
   const [location] = useLocation();
   const queryClient = useQueryClient();
 
-  // Keep track of unread channels
   const [unreadChannels, setUnreadChannels] = useState<Set<number>>(new Set());
-  // Keep track of unread DM conversation IDs
-  const [unreadDMConversations, setUnreadDMConversations] = useState<Set<number>>(new Set());
+  const [unreadDMConversations, setUnreadDMConversations] = useState<Set<number>>(
+    new Set()
+  );
 
-  // Track whether we're viewing /dm/:id
   const dmMatch = location.match(/^\/dm\/(\d+)/);
   const selectedUserId = dmMatch ? parseInt(dmMatch[1], 10) : null;
 
-  // When the user selects a channel, remove it from unread
   const handleSelectChannel = (channelId: number) => {
     setSelectedChannel(channelId);
     setSelectedThread(null);
@@ -51,7 +49,6 @@ export default function ChatPage() {
     });
   };
 
-  // Clear unread for that DM if we're viewing /dm/:id
   useEffect(() => {
     if (selectedUserId) {
       setUnreadDMConversations((prev) => {
@@ -62,11 +59,6 @@ export default function ChatPage() {
     }
   }, [selectedUserId]);
 
-  /**
-   * ===============
-   *   SUBSCRIBE TO GLOBAL WS EVENTS
-   * ===============
-   */
   useEffect(() => {
     const unsubscribe = subscribe((wsMessage) => {
       if (wsMessage.type === "message_created") {
@@ -75,12 +67,11 @@ export default function ChatPage() {
         const conversationId = message?.conversationId;
         const parentId = message?.parentId || null;
 
-        // Channel message
+        // For channel messages:
         if (channelId) {
           const isViewingThisChannel =
             channelId === selectedChannel && !selectedUserId;
 
-          // If not viewing it, add to unread
           if (!isViewingThisChannel) {
             setUnreadChannels((prev) => {
               const copy = new Set(prev);
@@ -90,7 +81,8 @@ export default function ChatPage() {
             queryClient.invalidateQueries([`/api/channels/${channelId}/messages`]);
             return;
           }
-          // If viewing it, merge it in, but only if it's a top-level message
+
+          // If no parentId, we push a brand-new message
           if (!parentId) {
             queryClient.setQueryData(
               [`/api/channels/${channelId}/messages`],
@@ -102,10 +94,24 @@ export default function ChatPage() {
                 return oldData;
               }
             );
+          } else {
+            // If parentId exists, increment that parent’s replies
+            queryClient.setQueryData(
+              [`/api/channels/${channelId}/messages`],
+              (oldData: Message[] = []) =>
+                oldData.map((m) =>
+                  m.id === parentId
+                    ? {
+                        ...m,
+                        replies: [...(m.replies ?? []), { ...message, user }],
+                      }
+                    : m
+                )
+            );
           }
         }
 
-        // DM message
+        // For DM messages:
         if (conversationId) {
           const isViewingThisDM = selectedUserId === conversationId;
           if (!isViewingThisDM) {
@@ -114,44 +120,53 @@ export default function ChatPage() {
               copy.add(conversationId);
               return copy;
             });
-            queryClient.invalidateQueries([`/api/dm/conversations/${conversationId}/messages`]);
+            queryClient.invalidateQueries([
+              `/api/dm/conversations/${conversationId}/messages`,
+            ]);
             return;
           }
-          // If we are viewing it, partial merge
-          queryClient.setQueryData(
-            [`/api/dm/conversations/${conversationId}/messages`],
-            (oldData: Message[] = []) => {
-              const exists = oldData.some((m) => m.id === message.id);
-              if (!exists) {
-                return [...oldData, { ...message, user, replies: [] }];
-              }
-              return oldData;
-            }
-          );
-        }
-      }
-      // Reaction updates
-      else if (wsMessage.type === "message_reaction_updated") {
-        const { messageId, reactions, channelId, conversationId } = wsMessage.payload;
 
-        // Channel reaction
+          if (!parentId) {
+            queryClient.setQueryData(
+              [`/api/dm/conversations/${conversationId}/messages`],
+              (oldData: Message[] = []) => {
+                const exists = oldData.some((m) => m.id === message.id);
+                if (!exists) {
+                  return [...oldData, { ...message, user, replies: [] }];
+                }
+                return oldData;
+              }
+            );
+          } else {
+            queryClient.setQueryData(
+              [`/api/dm/conversations/${conversationId}/messages`],
+              (oldData: Message[] = []) =>
+                oldData.map((m) =>
+                  m.id === parentId
+                    ? {
+                        ...m,
+                        replies: [...(m.replies ?? []), { ...message, user }],
+                      }
+                    : m
+                )
+            );
+          }
+        }
+      } else if (wsMessage.type === "message_reaction_updated") {
+        const { messageId, reactions, channelId, conversationId } =
+          wsMessage.payload;
+
         if (channelId) {
           queryClient.setQueryData(
             [`/api/channels/${channelId}/messages`],
             (oldData: Message[] = []) =>
-              oldData.map((m) =>
-                m.id === messageId ? { ...m, reactions } : m
-              )
+              oldData.map((m) => (m.id === messageId ? { ...m, reactions } : m))
           );
-        }
-        // DM reaction
-        else if (conversationId) {
+        } else if (conversationId) {
           queryClient.setQueryData(
             [`/api/dm/conversations/${conversationId}/messages`],
             (oldData: Message[] = []) =>
-              oldData.map((m) =>
-                m.id === messageId ? { ...m, reactions } : m
-              )
+              oldData.map((m) => (m.id === messageId ? { ...m, reactions } : m))
           );
         }
       }
@@ -167,14 +182,10 @@ export default function ChatPage() {
     setUnreadDMConversations,
   ]);
 
-  /**
-   * ===============
-   *   USER PROFILE SIDEBAR
-   * ===============
-   */
-  const [selectedUserProfile, setSelectedUserProfile] = useState<PublicUser | null>(null);
+  const [selectedUserProfile, setSelectedUserProfile] = useState<PublicUser | null>(
+    null
+  );
 
-  // When user avatar is clicked, fetch that user's latest data
   const handleUserAvatarClick = async (userId: number) => {
     if (!userId || userId === user?.id) return;
     try {
@@ -189,8 +200,16 @@ export default function ChatPage() {
     }
   };
 
-  // Closes the user profile side panel
   const closeUserProfile = () => setSelectedUserProfile(null);
+
+  const { data: allChannels = [] } = useQuery({
+    queryKey: ["/api/channels"],
+    queryFn: async () => {
+      const res = await fetch("/api/channels", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch channels");
+      return res.json() as Promise<Message[]>;
+    },
+  });
 
   return (
     <div className="h-screen flex flex-col">
@@ -219,6 +238,7 @@ export default function ChatPage() {
                   selectedChannel={selectedUserId ? null : selectedChannel}
                   unreadChannels={unreadChannels}
                   onSelectChannel={handleSelectChannel}
+                  channels={allChannels}
                 />
                 <Separator className="mx-2" />
                 <DirectMessagesList unreadDMConversations={unreadDMConversations} />
@@ -231,7 +251,6 @@ export default function ChatPage() {
 
         <ResizablePanel defaultSize={55} minSize={30}>
           <div className="h-full flex flex-col min-h-0">
-            {/* If we have a selected channel, show channel messages */}
             {selectedChannel && !selectedUserId && (
               <>
                 <MessageList
@@ -242,7 +261,6 @@ export default function ChatPage() {
                 <MessageInput channelId={selectedChannel} />
               </>
             )}
-            {/* If we have a selectedUserId from the /dm/:id route, show DM messages */}
             {selectedUserId && (
               <>
                 <MessageList
@@ -275,7 +293,6 @@ export default function ChatPage() {
               <div className="h-full border-l p-4 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold">User Profile</h2>
-                  {/* Replaced the old 'Close' text button with an X icon */}
                   <Button variant="ghost" size="icon" onClick={closeUserProfile}>
                     <X className="h-4 w-4" />
                   </Button>
@@ -287,15 +304,21 @@ export default function ChatPage() {
                       {selectedUserProfile.username[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <h3 className="text-xl font-bold">{selectedUserProfile.username}</h3>
+                  <h3 className="text-xl font-bold">
+                    {selectedUserProfile.username}
+                  </h3>
                   {selectedUserProfile.title && (
-                    <p className="text-muted-foreground">{selectedUserProfile.title}</p>
+                    <p className="text-muted-foreground">
+                      {selectedUserProfile.title}
+                    </p>
                   )}
                 </div>
                 {selectedUserProfile.bio && (
                   <div>
                     <h4 className="font-semibold mb-1">Bio</h4>
-                    <p className="text-sm text-muted-foreground">{selectedUserProfile.bio}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedUserProfile.bio}
+                    </p>
                   </div>
                 )}
               </div>

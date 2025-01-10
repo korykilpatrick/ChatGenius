@@ -1,4 +1,3 @@
-// MessageList.tsx
 import { useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,7 +22,6 @@ type MessageListProps = {
 };
 
 const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
-
 type MessageType = Message | DirectMessageWithSender;
 
 export default function MessageList({
@@ -142,7 +140,6 @@ export default function MessageList({
                       </AvatarFallback>
                     </Avatar>
                   </div>
-
                   <div className="flex-1">
                     <div className="message-bubble">
                       <div className="flex items-center gap-2 mb-1">
@@ -172,7 +169,9 @@ export default function MessageList({
                                     variant="secondary"
                                     size="sm"
                                     className="h-6 text-xs"
-                                    onClick={() => handleReaction(message.id, reaction)}
+                                    onClick={() =>
+                                      handleReaction(message.id, reaction)
+                                    }
                                   >
                                     {reaction} {userIds.length}
                                   </Button>
@@ -182,7 +181,6 @@ export default function MessageList({
                         )}
                     </div>
                   </div>
-
                   <div className="opacity-0 group-hover:opacity-100 flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
@@ -220,7 +218,6 @@ export default function MessageList({
 
                 {"channelId" in message &&
                   channelId &&
-                  "replies" in message &&
                   message.replies &&
                   message.replies.length > 0 && (
                     <Button

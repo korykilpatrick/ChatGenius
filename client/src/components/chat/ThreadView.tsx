@@ -1,4 +1,3 @@
-// ThreadView.tsx
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -21,10 +20,6 @@ const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "�
 type ThreadViewProps = {
   message: Message | DirectMessageWithSender;
   onClose: () => void;
-  /**
-   * Optional callback for clicking another user's avatar
-   * to show their profile
-   */
   onUserAvatarClick?: (userId: number) => void;
 };
 
@@ -36,19 +31,14 @@ export default function ThreadView({
   const queryClient = useQueryClient();
   const { subscribe, sendMessage } = useWebSocket();
   const { user } = useUser();
-
-  // If this is a DM, the message has "conversationId". Otherwise, it's a channel message.
   const isDM = "conversationId" in message;
 
-  // Subscribe to WebSocket events for new replies and reaction updates
   useEffect(() => {
     const unsubscribe = subscribe((wsMessage) => {
-      // A new reply was created
       if (
         wsMessage.type === "message_created" &&
         wsMessage.payload.message.parentId === message.id
       ) {
-        // Insert the new reply into our existing thread query data
         const { conversationId, channelId } = wsMessage.payload.message;
         queryClient.setQueryData(
           isDM
@@ -58,17 +48,14 @@ export default function ThreadView({
             const newReply = {
               ...wsMessage.payload.message,
               user: wsMessage.payload.user,
-              sender: wsMessage.payload.user, // for DM consistency
+              sender: wsMessage.payload.user,
             };
             const exists = oldData.some((msg) => msg.id === newReply.id);
             return exists ? oldData : [...oldData, newReply];
           }
         );
-      }
-      // A reaction was added/removed
-      else if (wsMessage.type === "message_reaction_updated") {
+      } else if (wsMessage.type === "message_reaction_updated") {
         const { messageId, reactions, channelId, conversationId } = wsMessage.payload;
-        // Update the replies for this parent
         const queryKey = isDM
           ? [`/api/dm/conversations/${(message as DirectMessageWithSender).conversationId}/messages/${message.id}/replies`]
           : [`/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`];
@@ -80,10 +67,7 @@ export default function ThreadView({
               reply.id === messageId ? { ...reply, reactions } : reply
             )
         );
-
-        // Also update the top-level message if the reaction is on the parent
         if (messageId === message.id) {
-          // mutate the local message object
           message.reactions = reactions;
         }
       }
@@ -93,29 +77,22 @@ export default function ThreadView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, queryClient, subscribe, isDM]);
 
-  // Fetch the replies for this message
   const { data: replies = [] } = useQuery<(Message | DirectMessageWithSender)[]>({
     queryKey: isDM
-      ? [
-          `/api/dm/conversations/${(message as DirectMessageWithSender).conversationId}/messages/${message.id}/replies`,
-        ]
-      : [
-          `/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`,
-        ],
+      ? [`/api/dm/conversations/${(message as DirectMessageWithSender).conversationId}/messages/${message.id}/replies`]
+      : [`/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`],
   });
 
-  // Send a reaction
   const handleReaction = (messageId: number, reaction: string) => {
     if (!user) return;
     sendMessage("message_reaction", {
       messageId,
       reaction,
       userId: user.id,
-      isDM, // Let the server know if this is a DM
+      isDM,
     });
   };
 
-  // The main message might have `user` (channels) or `sender` (DM)
   const messageUser = "user" in message ? message.user : message.sender;
 
   return (
@@ -129,7 +106,6 @@ export default function ThreadView({
 
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {/* The parent message at the top */}
           <div className="group flex items-start gap-3">
             <Avatar
               className="cursor-pointer"
@@ -148,14 +124,10 @@ export default function ThreadView({
                 </span>
               </div>
               <p className="mt-1">{message.content}</p>
-              {/* Reactions on the parent */}
               {message.reactions &&
-                Object.entries(message.reactions as Record<string, number[]>)
-                  .length > 0 && (
+                Object.entries(message.reactions).length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {Object.entries(
-                      message.reactions as Record<string, number[]>
-                    ).map(([reaction, userIds]) =>
+                    {Object.entries(message.reactions).map(([reaction, userIds]) =>
                       userIds.length > 0 ? (
                         <Button
                           key={reaction}
@@ -171,7 +143,6 @@ export default function ThreadView({
                   </div>
                 )}
             </div>
-            {/* Reaction button for the parent message */}
             <div className="opacity-0 group-hover:opacity-100">
               <Popover>
                 <PopoverTrigger asChild>
@@ -197,7 +168,6 @@ export default function ThreadView({
             </div>
           </div>
 
-          {/* Replies */}
           {replies.map((reply) => {
             const replyUser = "user" in reply ? reply.user : reply.sender;
             return (
@@ -219,10 +189,8 @@ export default function ThreadView({
                     </span>
                   </div>
                   <p className="mt-1">{reply.content}</p>
-                  {/* Reactions on this reply */}
                   {reply.reactions &&
-                    Object.entries(reply.reactions as Record<string, number[]>)
-                      .length > 0 && (
+                    Object.entries(reply.reactions).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {Object.entries(reply.reactions).map(
                           ([reaction, userIds]) =>
@@ -241,7 +209,6 @@ export default function ThreadView({
                       </div>
                     )}
                 </div>
-                {/* Reaction button for each reply */}
                 <div className="opacity-0 group-hover:opacity-100">
                   <Popover>
                     <PopoverTrigger asChild>
@@ -271,7 +238,6 @@ export default function ThreadView({
         </div>
       </ScrollArea>
 
-      {/* The MessageInput at the bottom: pass parentId so it’s a reply */}
       {isDM ? (
         <MessageInput
           conversationId={(message as DirectMessageWithSender).conversationId}

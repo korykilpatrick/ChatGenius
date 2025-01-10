@@ -1,4 +1,3 @@
-// DirectMessagePage.tsx
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,23 +29,15 @@ export default function DirectMessagePage() {
   const queryClient = useQueryClient();
 
   const otherUserId = params?.id ? parseInt(params.id) : null;
-
-  // Track which message is opened in the thread sidebar
-  const [selectedMessage, setSelectedMessage] =
-    useState<DirectMessageWithSender | null>(null);
-
-  // Also track viewing another user's profile
+  const [selectedMessage, setSelectedMessage] = useState<DirectMessageWithSender | null>(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState<any>(null);
-
   const closeUserProfile = () => setSelectedUserProfile(null);
 
-  // Fetch or create the conversation with the other user
   const { data: conversation } = useQuery<DirectMessageProps>({
     queryKey: [`/api/dm/conversations/${otherUserId}`],
     enabled: !!otherUserId && !!currentUser,
   });
 
-  // Function to fetch and open another user's profile
   const handleUserAvatarClick = async (userId: number) => {
     if (!userId || userId === currentUser?.id) return;
     try {
@@ -61,19 +52,14 @@ export default function DirectMessagePage() {
     }
   };
 
-  /**
-   * Handle real-time updates:
-   */
   useEffect(() => {
     if (!conversation) return;
-
     const conversationId = conversation.conversation.id;
 
     const unsubscribe = subscribe((wsMessage) => {
       if (wsMessage.type === "message_created") {
         const { message, user } = wsMessage.payload || {};
         if (message?.conversationId === conversationId) {
-          // 1) Merge the new message into our local messages list
           queryClient.setQueryData(
             [`/api/dm/conversations/${conversationId}/messages`],
             (oldData: DirectMessageWithSender[] = []) => {
@@ -84,15 +70,11 @@ export default function DirectMessagePage() {
               return oldData;
             }
           );
-          // 2) Invalidate the DM conversation list
           queryClient.invalidateQueries(["/api/dm/conversations"]);
         }
-      }
-      // For DM reactions
-      else if (wsMessage.type === "message_reaction_updated") {
+      } else if (wsMessage.type === "message_reaction_updated") {
         const { messageId, reactions, conversationId: cId } = wsMessage.payload;
         if (cId && cId === conversationId) {
-          // Update the local message's reactions
           queryClient.setQueryData(
             [`/api/dm/conversations/${cId}/messages`],
             (oldData: DirectMessageWithSender[] = []) =>
@@ -134,12 +116,7 @@ export default function DirectMessagePage() {
       </header>
 
       <div className="flex-1 flex min-h-0">
-        {/* Main DM view */}
-        <div
-          className={`flex-1 flex flex-col ${
-            selectedMessage ? "border-r" : ""
-          }`}
-        >
+        <div className={`${selectedMessage ? "border-r" : ""} flex-1 flex flex-col`}>
           <MessageList
             conversationId={conversation.conversation.id}
             onThreadSelect={(message) =>
@@ -150,7 +127,6 @@ export default function DirectMessagePage() {
           <MessageInput conversationId={conversation.conversation.id} />
         </div>
 
-        {/* Thread sidebar */}
         {selectedMessage && (
           <div className="w-[400px]">
             <ThreadView
@@ -160,7 +136,6 @@ export default function DirectMessagePage() {
           </div>
         )}
 
-        {/* Optional user profile sidebar */}
         {selectedUserProfile && (
           <div className="w-[400px] border-l p-4 flex flex-col gap-4">
             <div className="flex items-center justify-between">
