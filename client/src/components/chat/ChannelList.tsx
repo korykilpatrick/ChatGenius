@@ -1,7 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus, Hash, ChevronRight, ChevronDown } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
@@ -26,25 +32,32 @@ type ChannelFormData = z.infer<typeof channelSchema>;
 
 type ChannelListProps = {
   selectedChannel: number | null;
+  // New prop: A set of channel IDs that have “unread” or “highlight”
+  unreadChannels?: Set<number>;
   onSelectChannel: (channelId: number) => void;
 };
 
-export default function ChannelList({ selectedChannel, onSelectChannel }: ChannelListProps) {
+export default function ChannelList({
+  selectedChannel,
+  unreadChannels = new Set(),
+  onSelectChannel,
+}: ChannelListProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
 
   const { data: channels = [] } = useQuery<Channel[]>({
-    queryKey: ['/api/channels'],
+    queryKey: ["/api/channels"],
   });
 
+  // Listen for newly created channels
   useEffect(() => {
     const handleWebSocketMessage = (message: any) => {
       if (message.type === "channel_created") {
-        queryClient.setQueryData<Channel[]>(['/api/channels'], (oldData = []) => {
+        queryClient.setQueryData<Channel[]>(["/api/channels"], (oldData = []) => {
           const newChannel = message.payload;
-          const exists = oldData.some(channel => channel.id === newChannel.id);
+          const exists = oldData.some((channel) => channel.id === newChannel.id);
           return exists ? oldData : [...oldData, newChannel];
         });
       }
@@ -64,11 +77,11 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
   });
 
   const createChannel = async (data: ChannelFormData) => {
-    const response = await fetch('/api/channels', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/channels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -88,7 +101,9 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
           </CollapsibleTrigger>
-          <h2 className="font-semibold text-sidebar-foreground flex-1 px-2">Channels</h2>
+          <h2 className="font-semibold text-sidebar-foreground flex-1 px-2">
+            Channels
+          </h2>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-sidebar-foreground h-6 w-6">
@@ -125,24 +140,34 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full">Create Channel</Button>
+                  <Button type="submit" className="w-full">
+                    Create Channel
+                  </Button>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
         </div>
         <CollapsibleContent className="space-y-[2px]">
-          {channels.map((channel) => (
-            <Button
-              key={channel.id}
-              variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => onSelectChannel(channel.id)}
-            >
-              <Hash className="h-4 w-4 mr-2" />
-              {channel.name}
-            </Button>
-          ))}
+          {channels.map((channel) => {
+            const isSelected = selectedChannel === channel.id;
+            const isUnread = unreadChannels.has(channel.id) && !isSelected;
+
+            return (
+              <Button
+                key={channel.id}
+                variant={isSelected ? "secondary" : "ghost"}
+                // If unread, highlight or style it. Example: a subtle background color
+                className={`w-full justify-start ${
+                  isUnread ? "bg-yellow-50 dark:bg-yellow-900/40" : ""
+                }`}
+                onClick={() => onSelectChannel(channel.id)}
+              >
+                <Hash className="h-4 w-4 mr-2" />
+                {channel.name}
+              </Button>
+            );
+          })}
         </CollapsibleContent>
       </Collapsible>
     </div>
