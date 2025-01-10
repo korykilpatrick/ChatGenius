@@ -1,8 +1,10 @@
-import { useState } from "react";
+// DirectMessagePage.tsx
+import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/use-user";
+import { useWebSocket } from "@/hooks/use-websocket";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
 import ThreadView from "@/components/chat/ThreadView";
@@ -24,6 +26,9 @@ interface DirectMessageProps {
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { user: currentUser } = useUser();
+  const { subscribe } = useWebSocket();
+  const queryClient = useQueryClient();
+
   const otherUserId = params?.id ? parseInt(params.id) : null;
 
   // Track which message is opened in the thread sidebar
@@ -35,6 +40,40 @@ export default function DirectMessagePage() {
     queryKey: [`/api/dm/conversations/${otherUserId}`],
     enabled: !!otherUserId && !!currentUser,
   });
+
+  /**
+   * Handle real-time updates:
+   * Whenever the server sends a "message_created" event,
+   * if it belongs to our current conversationId, merge it
+   * into the existing React Query cache so that it shows
+   * up immediately without a refresh.
+   */
+  useEffect(() => {
+    if (!conversation) return;
+
+    const conversationId = conversation.conversation.id;
+
+    const unsubscribe = subscribe((wsMessage) => {
+      if (wsMessage.type === "message_created") {
+        const { message, user } = wsMessage.payload || {};
+        if (message?.conversationId === conversationId) {
+          queryClient.setQueryData(
+            [`/api/dm/conversations/${conversationId}/messages`],
+            (oldData: DirectMessageWithSender[] = []) => {
+              // Only add if it isn't already in the list
+              const exists = oldData.some((m) => m.id === message.id);
+              if (!exists) {
+                return [...oldData, { ...message, sender: user, replies: [] }];
+              }
+              return oldData;
+            }
+          );
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [conversation, subscribe, queryClient]);
 
   if (!currentUser || !otherUserId || !conversation) {
     return null;
@@ -80,5 +119,4 @@ export default function DirectMessagePage() {
         )}
       </div>
     </div>
-  );
-}
+  )};
