@@ -9,6 +9,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { useUnread } from "@/hooks/use-unread";
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,6 +35,7 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
   const [isExpanded, setIsExpanded] = useState(true);
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
+  const { unreadState } = useUnread();
 
   const { data: channels = [] } = useQuery<Channel[]>({
     queryKey: ['/api/channels'],
@@ -132,17 +134,24 @@ export default function ChannelList({ selectedChannel, onSelectChannel }: Channe
           </Dialog>
         </div>
         <CollapsibleContent className="space-y-[2px]">
-          {channels.map((channel) => (
-            <Button
-              key={channel.id}
-              variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-              className="w-full justify-start"
-              onClick={() => onSelectChannel(channel.id)}
-            >
-              <Hash className="h-4 w-4 mr-2" />
-              {channel.name}
-            </Button>
-          ))}
+          {channels.map((channel) => {
+            const hasUnread = unreadState.channels.has(channel.id);
+
+            return (
+              <Button
+                key={channel.id}
+                variant={selectedChannel === channel.id ? "secondary" : "ghost"}
+                className={`w-full justify-start ${hasUnread ? 'font-semibold' : ''}`}
+                onClick={() => onSelectChannel(channel.id)}
+              >
+                <Hash className={`h-4 w-4 mr-2 ${hasUnread ? 'text-primary' : ''}`} />
+                {channel.name}
+                {hasUnread && (
+                  <div className="ml-2 w-2 h-2 rounded-full bg-primary" />
+                )}
+              </Button>
+            );
+          })}
         </CollapsibleContent>
       </Collapsible>
     </div>
