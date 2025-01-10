@@ -1,3 +1,4 @@
+// ProfilePage.tsx
 import { useState, useRef } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useQueryClient } from "@tanstack/react-query";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -35,6 +37,7 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -47,17 +50,22 @@ export default function ProfilePage() {
 
   const onSubmit = async (data: ProfileFormData) => {
     try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
+      const response = await fetch("/api/user/profile", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        throw new Error("Failed to update profile");
       }
+
+      // Re-fetch user info so changes appear immediately
+      await queryClient.invalidateQueries(["/api/user"]);
+      await queryClient.invalidateQueries(["/api/users"]);
 
       setIsEditing(false);
       toast({
@@ -65,7 +73,7 @@ export default function ProfilePage() {
         description: "Profile updated successfully",
       });
     } catch (error) {
-      console.error('Update error:', error);
+      console.error("Update error:", error);
       form.setError("root", {
         message: error instanceof Error ? error.message : "Update failed",
       });
@@ -97,25 +105,30 @@ export default function ProfilePage() {
     }
 
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append("avatar", file);
 
     try {
       setIsUploading(true);
-      const response = await fetch('/api/user/avatar', {
-        method: 'POST',
+      const response = await fetch("/api/user/avatar", {
+        method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload avatar');
+        throw new Error("Failed to upload avatar");
       }
+
+      // Re-fetch user + all users so we see the new avatar
+      await queryClient.invalidateQueries(["/api/user"]);
+      await queryClient.invalidateQueries(["/api/users"]);
 
       toast({
         title: "Success",
         description: "Avatar updated successfully",
       });
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error("Upload error:", error);
       toast({
         title: "Error",
         description: "Failed to upload avatar",

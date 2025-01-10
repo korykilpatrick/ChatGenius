@@ -1,3 +1,4 @@
+// ThreadView.tsx
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -20,9 +21,18 @@ const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "�
 type ThreadViewProps = {
   message: Message | DirectMessageWithSender;
   onClose: () => void;
+  /**
+   * Optional callback for clicking another user's avatar
+   * to show their profile
+   */
+  onUserAvatarClick?: (userId: number) => void;
 };
 
-export default function ThreadView({ message, onClose }: ThreadViewProps) {
+export default function ThreadView({
+  message,
+  onClose,
+  onUserAvatarClick,
+}: ThreadViewProps) {
   const queryClient = useQueryClient();
   const { subscribe, sendMessage } = useWebSocket();
   const { user } = useUser();
@@ -39,12 +49,11 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
         wsMessage.payload.message.parentId === message.id
       ) {
         // Insert the new reply into our existing thread query data
+        const { conversationId, channelId } = wsMessage.payload.message;
         queryClient.setQueryData(
           isDM
-            ? [
-                `/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`,
-              ]
-            : [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+            ? [`/api/dm/conversations/${conversationId}/messages/${message.id}/replies`]
+            : [`/api/channels/${channelId}/messages/${message.id}/replies`],
           (oldData: (Message | DirectMessageWithSender)[] = []) => {
             const newReply = {
               ...wsMessage.payload.message,
@@ -58,42 +67,41 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
       }
       // A reaction was added/removed
       else if (wsMessage.type === "message_reaction_updated") {
-        const { messageId, reactions } = wsMessage.payload;
+        const { messageId, reactions, channelId, conversationId } = wsMessage.payload;
+        // Update the replies for this parent
+        const queryKey = isDM
+          ? [`/api/dm/conversations/${(message as DirectMessageWithSender).conversationId}/messages/${message.id}/replies`]
+          : [`/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`];
 
-        // Update the reactions for any reply that matches this messageId
         queryClient.setQueryData(
-          isDM
-            ? [
-                `/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`,
-              ]
-            : [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
-          (oldData: (Message | DirectMessageWithSender)[] = []) => {
-            return oldData.map((reply) =>
-              reply.id === messageId
-                ? { ...reply, reactions }
-                : reply
-            );
-          }
+          queryKey,
+          (oldData: (Message | DirectMessageWithSender)[] = []) =>
+            oldData.map((reply) =>
+              reply.id === messageId ? { ...reply, reactions } : reply
+            )
         );
 
         // Also update the top-level message if the reaction is on the parent
         if (messageId === message.id) {
-          // We can directly mutate the parent message object or re-fetch
-          // Easiest approach: setQueryData with the updated reaction
-          // (We store parent data in the ThreadView, so let’s just do an in-place update)
+          // mutate the local message object
           message.reactions = reactions;
         }
       }
     });
 
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, queryClient, subscribe, isDM]);
 
   // Fetch the replies for this message
   const { data: replies = [] } = useQuery<(Message | DirectMessageWithSender)[]>({
     queryKey: isDM
-      ? [`/api/dm/conversations/${message.conversationId}/messages/${message.id}/replies`]
-      : [`/api/channels/${message.channelId}/messages/${message.id}/replies`],
+      ? [
+          `/api/dm/conversations/${(message as DirectMessageWithSender).conversationId}/messages/${message.id}/replies`,
+        ]
+      : [
+          `/api/channels/${(message as Message).channelId}/messages/${message.id}/replies`,
+        ],
   });
 
   // Send a reaction
@@ -122,8 +130,11 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {/* The parent message at the top */}
-          <div className="flex items-start gap-3">
-            <Avatar>
+          <div className="group flex items-start gap-3">
+            <Avatar
+              className="cursor-pointer"
+              onClick={() => onUserAvatarClick?.(messageUser.id)}
+            >
               <AvatarImage src={messageUser.avatar || undefined} />
               <AvatarFallback>
                 {messageUser.username[0].toUpperCase()}
@@ -139,7 +150,8 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
               <p className="mt-1">{message.content}</p>
               {/* Reactions on the parent */}
               {message.reactions &&
-                Object.entries(message.reactions as Record<string, number[]>).length > 0 && (
+                Object.entries(message.reactions as Record<string, number[]>)
+                  .length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {Object.entries(
                       message.reactions as Record<string, number[]>
@@ -189,11 +201,11 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
           {replies.map((reply) => {
             const replyUser = "user" in reply ? reply.user : reply.sender;
             return (
-              <div
-                key={reply.id}
-                className="group flex items-start gap-3 ml-8"
-              >
-                <Avatar>
+              <div key={reply.id} className="group flex items-start gap-3 ml-8">
+                <Avatar
+                  className="cursor-pointer"
+                  onClick={() => onUserAvatarClick?.(replyUser.id)}
+                >
                   <AvatarImage src={replyUser.avatar || undefined} />
                   <AvatarFallback>
                     {replyUser.username[0].toUpperCase()}
@@ -262,11 +274,14 @@ export default function ThreadView({ message, onClose }: ThreadViewProps) {
       {/* The MessageInput at the bottom: pass parentId so it’s a reply */}
       {isDM ? (
         <MessageInput
-          conversationId={message.conversationId}
+          conversationId={(message as DirectMessageWithSender).conversationId}
           parentId={message.id}
         />
       ) : (
-        <MessageInput channelId={message.channelId} parentId={message.id} />
+        <MessageInput
+          channelId={(message as Message).channelId}
+          parentId={message.id}
+        />
       )}
     </div>
   );

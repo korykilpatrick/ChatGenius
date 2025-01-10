@@ -32,7 +32,7 @@ type ChannelFormData = z.infer<typeof channelSchema>;
 
 type ChannelListProps = {
   selectedChannel: number | null;
-  // New prop: A set of channel IDs that have “unread” or “highlight”
+  // A set of channel IDs that have unread messages
   unreadChannels?: Set<number>;
   onSelectChannel: (channelId: number) => void;
 };
@@ -51,13 +51,13 @@ export default function ChannelList({
     queryKey: ["/api/channels"],
   });
 
-  // Listen for newly created channels
+  // Listen for newly created channels from WebSocket
   useEffect(() => {
     const handleWebSocketMessage = (message: any) => {
       if (message.type === "channel_created") {
         queryClient.setQueryData<Channel[]>(["/api/channels"], (oldData = []) => {
           const newChannel = message.payload;
-          const exists = oldData.some((channel) => channel.id === newChannel.id);
+          const exists = oldData.some((c) => c.id === newChannel.id);
           return exists ? oldData : [...oldData, newChannel];
         });
       }
@@ -157,11 +157,11 @@ export default function ChannelList({
               <Button
                 key={channel.id}
                 variant={isSelected ? "secondary" : "ghost"}
-                // If unread, highlight or style it. Example: a subtle background color
-                className={`w-full justify-start ${
-                  isUnread ? "bg-yellow-50 dark:bg-yellow-900/40" : ""
-                }`}
                 onClick={() => onSelectChannel(channel.id)}
+                className={`
+                  w-full justify-start px-2 py-1.5 h-auto text-sm
+                  ${isUnread ? "font-bold text-foreground" : "font-medium text-muted-foreground"}
+                `}
               >
                 <Hash className="h-4 w-4 mr-2" />
                 {channel.name}

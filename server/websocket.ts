@@ -1,3 +1,4 @@
+// websocket.ts
 import { WebSocketServer, WebSocket } from "ws";
 import { Server } from "http";
 import { db } from "@db";
@@ -159,8 +160,8 @@ export function setupWebSocket(server: Server) {
           if (!userId || !reaction || !messageId) return;
 
           try {
-            // DM reaction
             if (isDM) {
+              // DM reaction
               const [existingMessage] = await db
                 .select()
                 .from(directMessages)
@@ -192,6 +193,7 @@ export function setupWebSocket(server: Server) {
                 payload: {
                   messageId,
                   reactions: updatedMessage.reactions,
+                  conversationId: updatedMessage.conversationId,
                 },
               };
 
@@ -200,7 +202,10 @@ export function setupWebSocket(server: Server) {
                 .select({ userId: directMessageParticipants.userId })
                 .from(directMessageParticipants)
                 .where(
-                  eq(directMessageParticipants.conversationId, existingMessage.conversationId)
+                  eq(
+                    directMessageParticipants.conversationId,
+                    existingMessage.conversationId
+                  )
                 );
 
               const participantIds = new Set(participants.map((p) => p.userId));
@@ -249,6 +254,7 @@ export function setupWebSocket(server: Server) {
                 payload: {
                   messageId,
                   reactions: updatedMessage.reactions,
+                  channelId: updatedMessage.channelId,
                 },
               };
 

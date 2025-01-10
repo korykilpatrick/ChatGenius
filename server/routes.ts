@@ -1,3 +1,4 @@
+// routes.ts
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
@@ -119,7 +120,11 @@ export function registerRoutes(app: Express): Server {
     res.json({ files });
   });
 
-  // Users endpoint
+  // ==============
+  //  USER ENDPOINTS
+  // ==============
+
+  // GET users
   app.get("/api/users", async (req, res) => {
     try {
       const currentUserId = req.user?.id;
@@ -141,6 +146,120 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error fetching users:", error);
       res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // GET a single user by ID (for /profile/:id)
+  app.get("/api/users/:id", async (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    try {
+      const [userRow] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!userRow) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(userRow);
+    } catch (error) {
+      console.error("Error fetching user by ID:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // PUT /api/user/profile -> update the current user's profile
+  app.put("/api/user/profile", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const userId = req.user.id;
+
+    const { username, title, bio } = req.body;
+    if (!username || username.length < 3) {
+      return res.status(400).json({ message: "Invalid username" });
+    }
+
+    try {
+      await db
+        .update(users)
+        .set({
+          username,
+          title: title || null,
+          bio: bio || null,
+        })
+        .where(eq(users.id, userId));
+
+      // Return the newly updated user
+      const [updated] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      res.json({ user: updated });
+    } catch (error) {
+      console.error("Failed to update user profile:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to update user profile", error: String(error) });
+    }
+  });
+
+  // POST /api/user/avatar -> update avatar
+  app.post("/api/user/avatar", upload.single("avatar"), async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const userId = req.user.id;
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    try {
+      const avatarUrl = `/uploads/${req.file.filename}`;
+
+      await db
+        .update(users)
+        .set({ avatar: avatarUrl })
+        .where(eq(users.id, userId));
+
+      // Return updated user
+      const [updated] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      res.json({ user: updated });
+    } catch (error) {
+      console.error("Failed to update avatar:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to update avatar", error: String(error) });
     }
   });
 
@@ -177,15 +296,15 @@ export function registerRoutes(app: Express): Server {
           directMessageConversations,
           eq(
             directMessageParticipants.conversationId,
-            directMessageConversations.id,
-          ),
+            directMessageConversations.id
+          )
         )
         .innerJoin(
           users,
           and(
             eq(directMessageParticipants.userId, users.id),
-            not(eq(directMessageParticipants.userId, userId)),
-          ),
+            not(eq(directMessageParticipants.userId, userId))
+          )
         )
         .leftJoin(
           directMessages,
@@ -199,11 +318,11 @@ export function registerRoutes(app: Express): Server {
                 .where(
                   eq(
                     directMessages.conversationId,
-                    directMessageConversations.id,
-                  ),
-                ),
-            ),
-          ),
+                    directMessageConversations.id
+                  )
+                )
+            )
+          )
         )
         .where(
           exists(
@@ -214,12 +333,12 @@ export function registerRoutes(app: Express): Server {
                 and(
                   eq(
                     directMessageParticipants.conversationId,
-                    directMessageConversations.id,
+                    directMessageConversations.id
                   ),
-                  eq(directMessageParticipants.userId, userId),
-                ),
-              ),
-          ),
+                  eq(directMessageParticipants.userId, userId)
+                )
+              )
+          )
         )
         .orderBy(desc(directMessageConversations.lastMessageAt));
 
@@ -255,21 +374,16 @@ export function registerRoutes(app: Express): Server {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Check if a conversation already exists between currentUserId & otherUserId
+      // Check if a conversation already exists
       const existingConversations = await db
         .select({
           conversationId: directMessageParticipants.conversationId,
           participantCount: sql<number>`count(*)`.as("participant_count"),
         })
         .from(directMessageParticipants)
-        .where(
-          inArray(directMessageParticipants.userId, [
-            currentUserId,
-            otherUserId,
-          ]),
-        )
+        .where(inArray(directMessageParticipants.userId, [currentUserId, otherUserId]))
         .groupBy(directMessageParticipants.conversationId)
-        .having(sql`count(*) = 2`);
+        .having(eq(sql<number>`count(*)`, 2));
 
       let conversation;
 
@@ -291,8 +405,8 @@ export function registerRoutes(app: Express): Server {
           .where(
             eq(
               directMessageConversations.id,
-              existingConversations[0].conversationId,
-            ),
+              existingConversations[0].conversationId
+            )
           )
           .innerJoin(users, eq(users.id, otherUserId));
 
@@ -324,59 +438,56 @@ export function registerRoutes(app: Express): Server {
   });
 
   // GET messages in a DM conversation
-  app.get(
-    "/api/dm/conversations/:conversationId/messages",
-    async (req, res) => {
-      const userId = req.user!.id;
-      const conversationId = parseInt(req.params.conversationId);
+  app.get("/api/dm/conversations/:conversationId/messages", async (req, res) => {
+    const userId = req.user!.id;
+    const conversationId = parseInt(req.params.conversationId);
 
-      if (isNaN(conversationId)) {
-        return res.status(400).json({ message: "Invalid conversation ID" });
+    if (isNaN(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation ID" });
+    }
+
+    try {
+      // Must be a participant
+      const [participant] = await db
+        .select()
+        .from(directMessageParticipants)
+        .where(
+          and(
+            eq(directMessageParticipants.conversationId, conversationId),
+            eq(directMessageParticipants.userId, userId)
+          )
+        );
+
+      if (!participant) {
+        return res.status(403).json({ message: "Not authorized" });
       }
 
-      try {
-        // Must be a participant
-        const [participant] = await db
-          .select()
-          .from(directMessageParticipants)
-          .where(
-            and(
-              eq(directMessageParticipants.conversationId, conversationId),
-              eq(directMessageParticipants.userId, userId),
-            ),
-          );
+      const messagesList = await db
+        .select({
+          id: directMessages.id,
+          content: directMessages.content,
+          createdAt: directMessages.createdAt,
+          senderId: directMessages.senderId,
+          conversationId: directMessages.conversationId,
+          files: directMessages.files,
+          reactions: directMessages.reactions,
+          sender: {
+            id: users.id,
+            username: users.username,
+            avatar: users.avatar,
+          },
+        })
+        .from(directMessages)
+        .innerJoin(users, eq(users.id, directMessages.senderId))
+        .where(eq(directMessages.conversationId, conversationId))
+        .orderBy(asc(directMessages.createdAt));
 
-        if (!participant) {
-          return res.status(403).json({ message: "Not authorized" });
-        }
-
-        const messagesList = await db
-          .select({
-            id: directMessages.id,
-            content: directMessages.content,
-            createdAt: directMessages.createdAt,
-            senderId: directMessages.senderId,
-            conversationId: directMessages.conversationId,
-            files: directMessages.files,
-            reactions: directMessages.reactions,
-            sender: {
-              id: users.id,
-              username: users.username,
-              avatar: users.avatar,
-            },
-          })
-          .from(directMessages)
-          .innerJoin(users, eq(users.id, directMessages.senderId))
-          .where(eq(directMessages.conversationId, conversationId))
-          .orderBy(asc(directMessages.createdAt));
-
-        res.json(messagesList);
-      } catch (error) {
-        console.error("Error fetching DM messages:", error);
-        res.status(500).json({ message: "Failed to fetch messages" });
-      }
-    },
-  );
+      res.json(messagesList);
+    } catch (error) {
+      console.error("Error fetching DM messages:", error);
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
 
   // GET replies for a direct message (thread)
   app.get(
@@ -400,8 +511,8 @@ export function registerRoutes(app: Express): Server {
           .where(
             and(
               eq(directMessageParticipants.conversationId, conversationId),
-              eq(directMessageParticipants.userId, userId),
-            ),
+              eq(directMessageParticipants.userId, userId)
+            )
           );
 
         if (!participant) {
@@ -428,8 +539,8 @@ export function registerRoutes(app: Express): Server {
           .where(
             and(
               eq(directMessages.conversationId, conversationId),
-              eq(directMessages.parentId, messageId),
-            ),
+              eq(directMessages.parentId, messageId)
+            )
           )
           .orderBy(asc(directMessages.createdAt));
 
@@ -438,7 +549,7 @@ export function registerRoutes(app: Express): Server {
         console.error("Error fetching DM replies:", error);
         res.status(500).json({ message: "Failed to fetch replies" });
       }
-    },
+    }
   );
 
   /**
@@ -514,40 +625,37 @@ export function registerRoutes(app: Express): Server {
           user,
           replies: replies || [],
         };
-      }),
+      })
     );
 
     res.json(messagesWithReplies);
   });
 
   // Get replies for a channel message
-  app.get(
-    "/api/channels/:channelId/messages/:messageId/replies",
-    async (req, res) => {
-      const messageId = parseInt(req.params.messageId);
+  app.get("/api/channels/:channelId/messages/:messageId/replies", async (req, res) => {
+    const messageId = parseInt(req.params.messageId);
 
-      const replies = await db
-        .select({
-          message: messages,
-          user: {
-            id: users.id,
-            username: users.username,
-            avatar: users.avatar,
-          },
-        })
-        .from(messages)
-        .where(eq(messages.parentId, messageId))
-        .innerJoin(users, eq(users.id, messages.userId))
-        .orderBy(asc(messages.createdAt));
+    const replies = await db
+      .select({
+        message: messages,
+        user: {
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        },
+      })
+      .from(messages)
+      .where(eq(messages.parentId, messageId))
+      .innerJoin(users, eq(users.id, messages.userId))
+      .orderBy(asc(messages.createdAt));
 
-      res.json(
-        replies.map(({ message, user }) => ({
-          ...message,
-          user,
-        })),
-      );
-    },
-  );
+    res.json(
+      replies.map(({ message, user }) => ({
+        ...message,
+        user,
+      }))
+    );
+  });
 
   return httpServer;
 }

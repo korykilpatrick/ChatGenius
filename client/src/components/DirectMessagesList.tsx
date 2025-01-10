@@ -37,11 +37,19 @@ interface Conversation {
   };
 }
 
-export function DirectMessagesList() {
+type DirectMessagesListProps = {
+  /**
+   * A set of conversationIds that have unread messages,
+   * so we can highlight them.
+   */
+  unreadDMConversations: Set<number>;
+};
+
+export function DirectMessagesList({ unreadDMConversations }: DirectMessagesListProps) {
   const { toast } = useToast();
   const { user: currentUser } = useUser();
   const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(true);
 
   const { data: users = [] } = useQuery<User[]>({
@@ -64,7 +72,7 @@ export function DirectMessagesList() {
         throw new Error("Failed to get/create conversation");
       }
 
-      const data = await response.json();
+      await response.json(); // not strictly needed, we just need the conversation to exist
       queryClient.invalidateQueries({ queryKey: ["/api/dm/conversations"] });
       setLocation(`/dm/${participantId}`);
     } catch (error) {
@@ -79,19 +87,21 @@ export function DirectMessagesList() {
 
   if (!currentUser) return null;
 
-  const otherUsers = users.filter(user => user.id !== currentUser.id);
-  const sortedUsers = otherUsers.sort((a, b) => {
-    const aHasConversation = conversations.some(
-      conv => conv.participant.id === a.id
-    );
-    const bHasConversation = conversations.some(
-      conv => conv.participant.id === b.id
-    );
+  const otherUsers = users.filter((u) => u.id !== currentUser.id);
 
-    if (aHasConversation && !bHasConversation) return -1;
-    if (!aHasConversation && bHasConversation) return 1;
+  // Sort so that users with existing convos appear first, then by username
+  const sortedUsers = otherUsers.sort((a, b) => {
+    const aHasConvo = conversations.some((c) => c.participant.id === a.id);
+    const bHasConvo = conversations.some((c) => c.participant.id === b.id);
+
+    if (aHasConvo && !bHasConvo) return -1;
+    if (!aHasConvo && bHasConvo) return 1;
     return a.username.localeCompare(b.username);
   });
+
+  // For highlighting "selected" DM in the list
+  const dmMatch = location.match(/^\/dm\/(\d+)/);
+  const currentDMId = dmMatch ? parseInt(dmMatch[1], 10) : null;
 
   if (sortedUsers.length === 0) {
     return (
@@ -111,38 +121,55 @@ export function DirectMessagesList() {
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </Button>
           </CollapsibleTrigger>
-          <h2 className="font-semibold text-sidebar-foreground flex-1 px-2">Direct Messages</h2>
+          <h2 className="font-semibold text-sidebar-foreground flex-1 px-2">
+            Direct Messages
+          </h2>
         </div>
         <CollapsibleContent className="space-y-[2px]">
-          {sortedUsers.map((user) => {
+          {sortedUsers.map((thisUser) => {
             const activeConversation = conversations.find(
-              conv => conv.participant.id === user.id
+              (conv) => conv.participant.id === thisUser.id
             );
+            const conversationId = activeConversation?.conversation.id;
+            const isUnread = conversationId
+              ? unreadDMConversations.has(conversationId)
+              : false;
+
+            // If the user is in /dm/<id> that matches thisUser.id => selected
+            const isSelected = currentDMId === thisUser.id;
 
             return (
               <Button
-                key={user.id}
-                variant="ghost"
-                className="w-full justify-start px-2 py-1.5 h-auto hover:bg-accent/50"
-                onClick={() => startOrJoinConversation(user.id)}
+                key={thisUser.id}
+                variant={isSelected ? "secondary" : "ghost"}
+                className={`
+                  w-full px-2 py-1.5 h-auto flex items-center
+                  justify-between
+                  ${!isSelected ? "hover:bg-accent/50" : ""}
+                `}
+                onClick={() => startOrJoinConversation(thisUser.id)}
               >
-                <div className="flex items-center gap-2 min-w-0 w-full">
+                {/* Left side: Avatar + Full username (never truncate) */}
+                <div className="flex items-center gap-2 flex-none">
                   <Avatar className="h-5 w-5 shrink-0">
-                    <AvatarImage src={user.avatar || undefined} />
+                    <AvatarImage src={thisUser.avatar || undefined} />
                     <AvatarFallback>
-                      {user.username[0].toUpperCase()}
+                      {thisUser.username[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm truncate text-foreground block">
-                      {user.username}
-                    </span>
-                    {activeConversation?.lastMessage && (
-                      <span className="text-xs truncate text-muted-foreground block">
-                        {activeConversation.lastMessage.content}
-                      </span>
-                    )}
-                  </div>
+                  <span
+                    className={`
+                      whitespace-nowrap
+                      ${isUnread ? "font-bold text-foreground" : "font-medium text-muted-foreground"}
+                    `}
+                  >
+                    {thisUser.username}
+                    {isUnread && " •"}
+                  </span>
+                </div>
+                {/* Right side: message preview (truncated) */}
+                <div className="flex-1 text-right ml-2 text-xs text-muted-foreground truncate">
+                  {activeConversation?.lastMessage?.content || ""}
                 </div>
               </Button>
             );
