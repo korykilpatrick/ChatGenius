@@ -1,3 +1,4 @@
+// use-user.ts
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import type { User } from "@db/schema";
@@ -13,26 +14,19 @@ export function useUser() {
   } = useQuery({
     queryKey: ["/api/user"],
     queryFn: async () => {
-      try {
-        const response = await fetch("/api/user", {
-          credentials: "include",
-          headers: {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-          },
-        });
+      const response = await fetch("/api/user", {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
 
-        if (!response.ok) {
-          if (response.status === 401) {
-            return null;
-          }
-          throw new Error(`${response.status}: ${await response.text()}`);
-        }
-        return response.json();
-      } catch (err) {
-        console.error("Failed to fetch user:", err);
-        return null;
+      if (!response.ok) {
+        if (response.status === 401) return null;
+        throw new Error(`${response.status}: ${await response.text()}`);
       }
+      return response.json();
     },
     retry: false,
     staleTime: 5000,
@@ -42,8 +36,8 @@ export function useUser() {
     const response = await fetch("/api/login", {
       method: "POST",
       headers: {
+        Accept: "application/json",
         "Content-Type": "application/json",
-        "Accept": "application/json",
       },
       credentials: "include",
       body: JSON.stringify(data),
@@ -56,39 +50,50 @@ export function useUser() {
 
     const result = await response.json();
     queryClient.setQueryData(["/api/user"], result.user);
-    // Invalidate users list to reflect status changes
+    queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    return result;
+  };
+
+  const register = async (data: { username: string; password: string }) => {
+    const response = await fetch("/api/register", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message);
+    }
+
+    const result = await response.json();
+    queryClient.setQueryData(["/api/user"], result.user);
     queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     return result;
   };
 
   const logout = async () => {
-    try {
-      const response = await fetch("/api/logout", {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-        },
-        credentials: "include",
-      });
+    const userId = user?.id;
+    const response = await fetch("/api/logout", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+      },
+      credentials: "include",
+    });
 
-      if (!response.ok) {
-        throw new Error("Logout failed");
-      }
+    if (!response.ok) throw new Error("Logout failed");
 
-      // Clear React Query cache
-      queryClient.clear();
-      queryClient.setQueryData(["/api/user"], null);
-      queryClient.resetQueries();
-
-      // Force page reload to clear any remaining state
-      window.location.href = "/login";
-
-      return true;
-    } catch (error) {
-      console.error("Logout error:", error);
-      throw error;
-    }
+    queryClient.clear();
+    queryClient.setQueryData(["/api/user"], null);
+    queryClient.resetQueries();
+    window.location.href = "/login";
+    return true;
   };
 
-  return { user, isLoading, error, login, logout };
+  return { user, isLoading, error, login, register, logout };
 }
