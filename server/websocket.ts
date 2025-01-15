@@ -10,6 +10,7 @@ import {
   directMessageConversations,
 } from "@db/schema";
 import { eq } from "drizzle-orm";
+import { AIAvatarService } from "./rag/AIAvatarService";
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -275,7 +276,6 @@ export function setupWebSocket(server: Server) {
           if (!channelId || !content || !userId) return;
 
           try {
-            console.log("[WebSocket] Creating new channel message with files:", files);
             const [newMessage] = await db
               .insert(messages)
               .values({
@@ -297,6 +297,29 @@ export function setupWebSocket(server: Server) {
                 .from(users)
                 .where(eq(users.id, userId))
                 .limit(1);
+                // check if someone is being mentioned in the message, which triggers an avatar response
+              const pattern = /^@(\S+)\s+(.+)$/;
+              const match = content.match(pattern);
+              if (match) {
+                  const username = match[1];
+                  const content = match[2].trim();
+                  console.log('matched', username, content, newMessage, userData)
+                  // query db for user
+                  const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+                  if (user) {
+                      const aiService = new AIAvatarService();
+                      await aiService.initialize();
+                      const aiResponse = await aiService.generateAvatarResponse(user.id, newMessage)
+                    // create a new message with the avatar response
+                      console.log('aiResponse', aiResponse);
+                      const [aiMessage] = await db.insert(messages).values({
+                        channelId,
+                        content: aiResponse,
+                        userId: user.id,
+                        parentId: null,
+                      }).returning();
+                  }
+              }
 
               if (userData) {
                 const response = {
