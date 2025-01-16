@@ -7,6 +7,10 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
 import ThreadView from "@/components/chat/ThreadView";
+import UserPresence from "@/components/chat/UserPresence";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import type { DirectMessageWithSender } from "@db/schema";
 
 interface DirectMessageProps {
@@ -25,7 +29,7 @@ interface DirectMessageProps {
 export default function DirectMessagePage() {
   const [, params] = useRoute("/dm/:id");
   const { user: currentUser } = useUser();
-  const { subscribe } = useWebSocket();
+  const { subscribe, isConnected } = useWebSocket();
   const queryClient = useQueryClient();
 
   const otherUserId = params?.id ? parseInt(params.id) : null;
@@ -100,21 +104,33 @@ export default function DirectMessagePage() {
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b h-14 flex-shrink-0 flex items-center px-4 justify-between bg-background">
-        <div className="flex items-center gap-2">
-          <Avatar>
-            <AvatarImage src={participant.avatar || undefined} />
-            <AvatarFallback>
-              {participant.username[0].toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-semibold">{participant.username}</span>
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-xl font-bold hover:opacity-80">
+            ChatGenius
+          </Link>
+          <div className="h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8 cursor-pointer" onClick={() => handleUserAvatarClick(participant.id)}>
+              <AvatarImage src={participant.avatar || undefined} />
+              <AvatarFallback>
+                {participant.username[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-semibold">{participant.username}</span>
+          </div>
         </div>
-        <Link
-          href="/"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          Back to Chat
-        </Link>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <UserPresence />
+            <span className="text-sm font-medium">{currentUser.username}</span>
+          </div>
+          <ThemeToggle />
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isConnected ? "bg-green-500" : "bg-red-500"
+            }`}
+          />
+        </div>
       </header>
 
       <div className="flex-1 flex min-h-0">
