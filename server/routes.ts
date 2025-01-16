@@ -200,7 +200,7 @@ export function registerRoutes(app: Express): Server {
           username,
           title: title || null,
           bio: bio || null,
-          aiResponseEnabled: aiResponseEnabled ?? false,
+          aiResponseEnabled: aiResponseEnabled === true,
         })
         .where(eq(users.id, userId));
 
