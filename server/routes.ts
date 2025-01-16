@@ -709,5 +709,31 @@ export function registerRoutes(app: Express): Server {
     );
   });
 
+  // GET users search
+  app.get("/api/users/search", async (req, res) => {
+    try {
+      const { query } = req.query;
+      if (typeof query !== "string") {
+        return res.status(400).json({ message: "Query parameter is required" });
+      }
+
+      const usersList = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+        })
+        .from(users)
+        .where(sql`LOWER(${users.username}) LIKE LOWER(${`%${query}%`})`)
+        .orderBy(asc(users.username))
+        .limit(10);
+
+      res.json(usersList);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      res.status(500).json({ message: "Failed to search users" });
+    }
+  });
+
   return httpServer;
 }

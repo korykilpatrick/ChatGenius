@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -6,6 +6,13 @@ import { useUser } from "@/hooks/use-user";
 import { PaperclipIcon, SendIcon, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import MentionDropdown from "./MentionDropdown";
+
+interface User {
+  id: number;
+  username: string;
+  avatar: string | null;
+}
 
 type MessageInputProps = {
   channelId?: number;
@@ -28,10 +35,107 @@ export default function MessageInput({
   const [content, setContent] = useState("");
   const [files, setFiles] = useState<FilePreview[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [isMentioning, setIsMentioning] = useState(false);
+  const [mentionUsers, setMentionUsers] = useState<User[]>([]);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [triggerPosition, setTriggerPosition] = useState<{ top: number; left: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { sendMessage } = useWebSocket();
   const { user } = useUser();
   const { toast } = useToast();
+
+  const searchUsers = useCallback(async (query: string) => {
+    try {
+      const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error("Failed to search users");
+      const users = await response.json();
+      setMentionUsers(users);
+    } catch (error) {
+      console.error("Error searching users:", error);
+    }
+  }, []);
+
+  const handleMentionSelect = (selectedUser: User) => {
+    const beforeMention = content.slice(0, content.lastIndexOf("@"));
+    const afterMention = content.slice(content.lastIndexOf("@") + mentionQuery.length + 1);
+    setContent(`${beforeMention}@${selectedUser.username} ${afterMention}`);
+    setIsMentioning(false);
+    setMentionQuery("");
+    setTriggerPosition(null);
+    textareaRef.current?.focus();
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContent = e.target.value;
+    setContent(newContent);
+
+    const lastAtIndex = newContent.lastIndexOf("@");
+    if (lastAtIndex !== -1) {
+      const textAfterAt = newContent.slice(lastAtIndex + 1);
+      const spaceAfterAt = textAfterAt.indexOf(" ");
+      const query = spaceAfterAt === -1 ? textAfterAt : textAfterAt.slice(0, spaceAfterAt);
+
+      if (query !== mentionQuery) {
+        setMentionQuery(query);
+        if (query) {
+          searchUsers(query);
+        }
+      }
+
+      if (!isMentioning) {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const { selectionEnd } = textarea;
+          const textBeforeCaret = newContent.slice(0, selectionEnd);
+          const lines = textBeforeCaret.split("\n");
+          const currentLineIndex = lines.length - 1;
+          const currentLine = lines[currentLineIndex];
+          
+          const rect = textarea.getBoundingClientRect();
+          const lineHeight = parseInt(getComputedStyle(textarea).lineHeight);
+          const top = rect.top + (currentLineIndex * lineHeight) + lineHeight;
+          
+          // Approximate the left position based on character width
+          const charWidth = 8; // Approximate character width in pixels
+          const charsInCurrentLine = currentLine.length;
+          const left = rect.left + (charsInCurrentLine * charWidth);
+
+          setTriggerPosition({ top, left });
+        }
+        setIsMentioning(true);
+        setActiveMentionIndex(0);
+      }
+    } else {
+      setIsMentioning(false);
+      setMentionQuery("");
+      setTriggerPosition(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isMentioning && mentionUsers.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveMentionIndex((prev) => (prev + 1) % mentionUsers.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveMentionIndex((prev) => (prev - 1 + mentionUsers.length) % mentionUsers.length);
+      } else if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleMentionSelect(mentionUsers[activeMentionIndex]);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setIsMentioning(false);
+        setMentionQuery("");
+        setTriggerPosition(null);
+      }
+    } else if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
@@ -76,22 +180,16 @@ export default function MessageInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || (!content.trim() && !files.length)) return;
-    console.log("Message was submitted!", conversationId, parentId);
+    
     if (channelId) {
       sendMessage("new_message", {
-        content: content.trim() || " ", // Send space if no content
+        content: content.trim() || " ",
         channelId,
         userId: user.id,
         parentId,
         files: files.map((f) => f.url),
       });
     } else if (conversationId) {
-      console.log(
-        "[MessageInput] Sending new_direct_message event:",
-        conversationId,
-        parentId,
-      );
-
       sendMessage("new_direct_message", {
         content: content.trim() || " ",
         conversationId,
@@ -103,13 +201,9 @@ export default function MessageInput({
 
     setContent("");
     setFiles([]);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+    setIsMentioning(false);
+    setMentionQuery("");
+    setTriggerPosition(null);
   };
 
   return (
@@ -146,7 +240,7 @@ export default function MessageInput({
           </div>
         </ScrollArea>
       )}
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 relative">
         <input
           type="file"
           ref={fileInputRef}
@@ -168,10 +262,11 @@ export default function MessageInput({
           />
         </Button>
         <Textarea
+          ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleContentChange}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder="Type a message... Use @ to mention users"
           className="min-h-[80px]"
         />
         <Button
@@ -182,6 +277,14 @@ export default function MessageInput({
         >
           <SendIcon className="h-5 w-5" />
         </Button>
+        <MentionDropdown
+          users={mentionUsers}
+          isOpen={isMentioning}
+          onSelect={handleMentionSelect}
+          activeIndex={activeMentionIndex}
+          inputRef={textareaRef}
+          triggerPosition={triggerPosition}
+        />
       </div>
     </form>
   );
