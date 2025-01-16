@@ -171,18 +171,18 @@ export default function ProfilePage() {
                 </Avatar>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="useUrlAvatar">Use URL for avatar</Label>
-                <Switch
-                  id="useUrlAvatar"
-                  checked={useUrlAvatar}
-                  onCheckedChange={setUseUrlAvatar}
-                />
-              </div>
+              {isEditing && (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="useUrlAvatar">Use URL for avatar</Label>
+                    <Switch
+                      id="useUrlAvatar"
+                      checked={useUrlAvatar}
+                      onCheckedChange={setUseUrlAvatar}
+                    />
+                  </div>
 
-              {useUrlAvatar ? (
-                <Form {...form}>
-                  <form className="w-full">
+                  {useUrlAvatar ? (
                     <FormField
                       control={form.control}
                       name="avatarUrl"
@@ -233,26 +233,26 @@ export default function ProfilePage() {
                         </FormItem>
                       )}
                     />
-                  </form>
-                </Form>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                  >
-                    <Camera className="h-4 w-4 mr-2" />
-                    {isUploading ? "Uploading..." : "Upload Avatar"}
-                  </Button>
-                </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        {isUploading ? "Uploading..." : "Upload Avatar"}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
