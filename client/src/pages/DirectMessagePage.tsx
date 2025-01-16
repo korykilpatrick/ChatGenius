@@ -70,7 +70,9 @@ export default function DirectMessagePage() {
               return oldData;
             }
           );
-          queryClient.invalidateQueries(["/api/dm/conversations"]);
+          queryClient.invalidateQueries({
+            queryKey: ["/api/dm/conversations"]
+          });
         }
       } else if (wsMessage.type === "message_reaction_updated") {
         const { messageId, reactions, conversationId: cId } = wsMessage.payload;
@@ -120,7 +122,7 @@ export default function DirectMessagePage() {
           <MessageList
             conversationId={conversation.conversation.id}
             onThreadSelect={(message) =>
-              setSelectedMessage(message as DirectMessageWithSender)
+              setSelectedMessage(message as unknown as DirectMessageWithSender)
             }
             onUserAvatarClick={handleUserAvatarClick}
           />
