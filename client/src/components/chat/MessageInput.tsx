@@ -69,11 +69,22 @@ export default function MessageInput({
   const handleMentionSelect = (selectedUser: User) => {
     const beforeMention = content.slice(0, content.lastIndexOf("@"));
     const afterMention = content.slice(content.lastIndexOf("@") + mentionQuery.length + 1);
-    setContent(`${beforeMention}@${selectedUser.username} ${afterMention}`);
+    const newContent = `${beforeMention}@${selectedUser.username} ${afterMention}`;
+    setContent(newContent);
     setIsMentioning(false);
     setMentionQuery("");
+    setMentionUsers([]);
     setTriggerPosition(null);
-    textareaRef.current?.focus();
+    setActiveMentionIndex(0);
+    
+    // Set cursor position after the inserted mention
+    const newCursorPosition = beforeMention.length + selectedUser.username.length + 2; // +2 for @ and space
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+      }
+    }, 0);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
