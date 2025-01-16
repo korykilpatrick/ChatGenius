@@ -128,7 +128,35 @@ export function setupWebSocket(server: Server) {
 
               const participantIds = new Set(participants.map((p) => p.userId));
 
-              // Get the recipient's user data to check aiResponseEnabled
+              // Build and broadcast the original message immediately
+              const response = {
+                type: "message_created",
+                payload: {
+                  message: {
+                    ...newMessage,
+                    files: newMessage.files || [],
+                  },
+                  user: userData,
+                },
+              };
+
+              // Broadcast to all participants in the conversation
+              let delivered = 0;
+              for (const client of clients) {
+                if (
+                  client.readyState === WebSocket.OPEN &&
+                  client.userId &&
+                  participantIds.has(client.userId)
+                ) {
+                  client.send(JSON.stringify(response));
+                  delivered++;
+                }
+              }
+              console.log(
+                `[WebSocket] DM delivered to ${delivered} participants`
+              );
+
+              // Now process AI response if needed
               const recipients = await db
                 .select({
                   id: users.id,
@@ -189,34 +217,6 @@ export function setupWebSocket(server: Server) {
                   }
                 }
               }
-
-              // Build the WS response
-              const response = {
-                type: "message_created",
-                payload: {
-                  message: {
-                    ...newMessage,
-                    files: newMessage.files || [],
-                  },
-                  user: userData,
-                },
-              };
-
-              // Broadcast to all participants in the conversation
-              let delivered = 0;
-              for (const client of clients) {
-                if (
-                  client.readyState === WebSocket.OPEN &&
-                  client.userId &&
-                  participantIds.has(client.userId)
-                ) {
-                  client.send(JSON.stringify(response));
-                  delivered++;
-                }
-              }
-              console.log(
-                `[WebSocket] DM delivered to ${delivered} participants`
-              );
             }
           } catch (error) {
             console.error("[WebSocket] Failed to create direct message:", error);
@@ -380,7 +380,28 @@ export function setupWebSocket(server: Server) {
               .where(eq(users.id, userId))
               .limit(1);
 
-            // Check for @mentions
+            // Broadcast original message immediately
+            if (userData) {
+              const response = {
+                type: "message_created",
+                payload: {
+                  message: {
+                    ...newMessage,
+                    files: newMessage.files || [],
+                  },
+                  user: userData,
+                },
+              };
+
+              // Broadcast to all connected clients
+              for (const client of clients) {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(response));
+                }
+              }
+            }
+
+            // Now check for @mentions and process AI response if needed
             const mentionMatch = content.match(/^@(\w+)/);
             if (mentionMatch) {
               const mentionedUsername = mentionMatch[1];
@@ -431,26 +452,6 @@ export function setupWebSocket(server: Server) {
                   if (client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify(aiMessageResponse));
                   }
-                }
-              }
-            }
-
-            if (userData) {
-              const response = {
-                type: "message_created",
-                payload: {
-                  message: {
-                    ...newMessage,
-                    files: newMessage.files || [],
-                  },
-                  user: userData,
-                },
-              };
-
-              // Broadcast to all connected clients
-              for (const client of clients) {
-                if (client.readyState === WebSocket.OPEN) {
-                  client.send(JSON.stringify(response));
                 }
               }
             }
