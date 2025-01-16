@@ -97,21 +97,20 @@ export default function MessageInput({
       const spaceAfterAt = textAfterAt.indexOf(" ");
       const query = spaceAfterAt === -1 ? textAfterAt : textAfterAt.slice(0, spaceAfterAt);
 
-      // Only search if we have a query and it's different from the current one
-      if (query !== mentionQuery) {
+      // Always search on empty query (right after @) or when query changes
+      if (query === "" || query !== mentionQuery) {
         setMentionQuery(query);
-        if (query) {
-          searchUsers(query);
-        }
+        searchUsers(query);
       }
 
-      // Check if we're at the @ symbol position
       const textarea = textareaRef.current;
       if (textarea) {
         const { selectionEnd } = textarea;
+        // Show dropdown if cursor is after @ and before any space
         const cursorIsAfterAt = selectionEnd > lastAtIndex;
-        const noSpacesBetweenAtAndCursor = newContent.slice(lastAtIndex, selectionEnd).indexOf(" ") === -1;
-        
+        const textBetweenAtAndCursor = newContent.slice(lastAtIndex, selectionEnd);
+        const noSpacesBetweenAtAndCursor = textBetweenAtAndCursor.indexOf(" ") === -1;
+
         if (cursorIsAfterAt && noSpacesBetweenAtAndCursor) {
           const textBeforeCaret = newContent.slice(0, selectionEnd);
           const lines = textBeforeCaret.split("\n");
@@ -138,6 +137,7 @@ export default function MessageInput({
       setIsMentioning(false);
       setMentionQuery("");
       setTriggerPosition(null);
+      setMentionUsers([]);
     }
   };
 
