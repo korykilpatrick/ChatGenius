@@ -142,14 +142,9 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-zinc-900">
       <header className="border-b h-14 flex items-center px-4 justify-between bg-background/80 backdrop-blur-sm dark:bg-zinc-900/80 dark:border-zinc-800">
-        <div className="flex items-center gap-4">
-          <Link href="/chat" className="hover:opacity-80">
-            <ArrowLeft className="h-6 w-6" />
-          </Link>
-          <Link href="/" className="text-xl font-bold hover:opacity-80">
-            ChatGenius
-          </Link>
-        </div>
+        <Link href="/" className="text-xl font-bold hover:opacity-80">
+          ChatGenius
+        </Link>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
@@ -164,8 +159,13 @@ export default function ProfilePage() {
 
       <div className="flex-1 p-4">
         <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl">Profile Settings</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Link href="/" className="hover:opacity-80">
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+              <CardTitle className="text-2xl">Profile Settings</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="mb-6 flex flex-col items-center space-y-4">
