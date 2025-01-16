@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUser } from "@/hooks/use-user";
 import { LogOut, User } from "lucide-react";
 import { useLocation } from "wouter";
+import { getAvatarUrl } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,14 +17,13 @@ export default function UserPresence() {
 
   if (!user) return null;
 
-  const avatarUrl = user.avatar || undefined;
   const initials = user.username[0].toUpperCase();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="h-8 w-8 hover:opacity-90 cursor-pointer">
-          <AvatarImage src={avatarUrl} />
+          <AvatarImage src={getAvatarUrl(user.avatar)} />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>

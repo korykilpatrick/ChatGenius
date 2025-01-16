@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/form";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useQueryClient } from "@tanstack/react-query";
+import { getAvatarUrl } from "@/lib/utils";
 
 const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
@@ -147,7 +148,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.avatar} />
+              <AvatarImage src={getAvatarUrl(user?.avatar)} />
               <AvatarFallback>{user?.username?.[0].toUpperCase()}</AvatarFallback>
             </Avatar>
             <span className="text-sm font-medium">{user?.username}</span>
@@ -165,7 +166,7 @@ export default function ProfilePage() {
             <div className="mb-6 flex flex-col items-center space-y-4">
               <div className="relative">
                 <Avatar className="h-24 w-24">
-                  <AvatarImage src={user?.avatar} />
+                  <AvatarImage src={getAvatarUrl(user?.avatar)} />
                   <AvatarFallback>{user?.username?.[0].toUpperCase()}</AvatarFallback>
                 </Avatar>
               </div>

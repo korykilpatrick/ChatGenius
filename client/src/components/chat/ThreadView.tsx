@@ -14,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getAvatarUrl } from "@/lib/utils";
 
 const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉", "🤔", "👀", "🙌", "🔥"];
 
@@ -111,7 +112,7 @@ export default function ThreadView({
               className="cursor-pointer"
               onClick={() => onUserAvatarClick?.(messageUser.id)}
             >
-              <AvatarImage src={messageUser.avatar || undefined} />
+              <AvatarImage src={getAvatarUrl(messageUser.avatar)} />
               <AvatarFallback>
                 {messageUser.username[0].toUpperCase()}
               </AvatarFallback>
@@ -176,7 +177,7 @@ export default function ThreadView({
                   className="cursor-pointer"
                   onClick={() => onUserAvatarClick?.(replyUser.id)}
                 >
-                  <AvatarImage src={replyUser.avatar || undefined} />
+                  <AvatarImage src={getAvatarUrl(replyUser.avatar)} />
                   <AvatarFallback>
                     {replyUser.username[0].toUpperCase()}
                   </AvatarFallback>
