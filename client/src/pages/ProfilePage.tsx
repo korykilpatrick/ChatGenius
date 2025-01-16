@@ -50,6 +50,7 @@ export default function ProfilePage() {
       title: user?.title || "",
       bio: user?.bio || "",
       aiResponseEnabled: Boolean(user?.aiResponseEnabled),
+      avatarUrl: user?.avatar || "",
     },
   });
 
@@ -61,6 +62,7 @@ export default function ProfilePage() {
         title: user.title || "",
         bio: user.bio || "",
         aiResponseEnabled: Boolean(user.aiResponseEnabled),
+        avatarUrl: user.avatar || "",
       });
     }
   }, [user, form]);
