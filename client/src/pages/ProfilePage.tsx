@@ -11,7 +11,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Camera } from "lucide-react";
+import { Camera, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import {
   Form,
@@ -142,9 +142,14 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-zinc-900">
       <header className="border-b h-14 flex items-center px-4 justify-between bg-background/80 backdrop-blur-sm dark:bg-zinc-900/80 dark:border-zinc-800">
-        <Link href="/" className="text-xl font-bold hover:opacity-80">
-          ChatGenius
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/chat" className="hover:opacity-80">
+            <ArrowLeft className="h-6 w-6" />
+          </Link>
+          <Link href="/" className="text-xl font-bold hover:opacity-80">
+            ChatGenius
+          </Link>
+        </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Avatar className="h-8 w-8">
