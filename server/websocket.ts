@@ -318,6 +318,35 @@ export function setupWebSocket(server: Server) {
                         userId: user.id,
                         parentId: null,
                       }).returning();
+
+                      // Fetch AI user data and broadcast the message
+                      const [aiUserData] = await db
+                        .select({
+                          id: users.id,
+                          username: users.username,
+                          avatar: users.avatar,
+                        })
+                        .from(users)
+                        .where(eq(users.id, user.id))
+                        .limit(1);
+
+                      const aiResponse = {
+                        type: "message_created",
+                        payload: {
+                          message: {
+                            ...aiMessage,
+                            files: [],
+                          },
+                          user: aiUserData,
+                        },
+                      };
+
+                      // Broadcast AI message to all connected clients
+                      for (const client of clients) {
+                        if (client.readyState === WebSocket.OPEN) {
+                          client.send(JSON.stringify(aiResponse));
+                        }
+                      }
                   }
               }
 
