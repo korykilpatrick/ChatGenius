@@ -1,5 +1,4 @@
-// ProfilePage.tsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUser } from "@/hooks/use-user";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,9 +47,21 @@ export default function ProfilePage() {
       username: user?.username || "",
       title: user?.title || "",
       bio: user?.bio || "",
-      aiResponseEnabled: user?.aiResponseEnabled || false,
+      aiResponseEnabled: Boolean(user?.aiResponseEnabled),
     },
   });
+
+  // Reset form when user data changes
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        username: user.username,
+        title: user.title || "",
+        bio: user.bio || "",
+        aiResponseEnabled: Boolean(user.aiResponseEnabled),
+      });
+    }
+  }, [user, form]);
 
   const onSubmit = async (data: ProfileFormData) => {
     try {
@@ -67,7 +78,6 @@ export default function ProfilePage() {
         throw new Error("Failed to update profile");
       }
 
-      // Re-fetch user info so changes appear immediately
       await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
 
@@ -88,7 +98,6 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file size (5MB limit)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Error",
@@ -98,7 +107,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // Check file type
     if (!file.type.match(/image\/(jpeg|jpg|png|gif)/)) {
       toast({
         title: "Error",
@@ -123,7 +131,6 @@ export default function ProfilePage() {
         throw new Error("Failed to upload avatar");
       }
 
-      // Re-fetch user + all users so we see the new avatar
       await queryClient.invalidateQueries(["/api/user"]);
       await queryClient.invalidateQueries(["/api/users"]);
 
@@ -149,7 +156,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background dark:bg-zinc-900">
-      {/* Navigation header */}
       <header className="border-b h-14 flex items-center px-4 justify-between bg-background/80 backdrop-blur-sm dark:bg-zinc-900/80 dark:border-zinc-800">
         <Link href="/" className="text-xl font-bold hover:opacity-80">
           ChatGenius
@@ -166,7 +172,6 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      {/* Profile content */}
       <div className="flex-1 p-4">
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
@@ -310,7 +315,7 @@ export default function ProfilePage() {
                 <div>
                   <Label>AI Response</Label>
                   <p className="mt-1 text-muted-foreground">
-                    {user?.aiResponseEnabled === true ? "Enabled" : "Disabled"}
+                    {Boolean(user?.aiResponseEnabled) ? "Enabled" : "Disabled"}
                   </p>
                 </div>
 
