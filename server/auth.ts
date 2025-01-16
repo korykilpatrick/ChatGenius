@@ -196,7 +196,7 @@ export async function setupAuth(app: Express) {
         title: updatedUser.title || undefined,
         bio: updatedUser.bio || undefined,
         status: updatedUser.status,
-        lastSeen: updatedUser.lastSeen
+        lastSeen: updatedUser.lastSeen || undefined
       };
 
       req.session.user = userData;
@@ -251,49 +251,6 @@ export async function setupAuth(app: Express) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     res.json(req.user);
-  });
-
-  app.put("/api/user/profile", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const { username, title, bio } = req.body;
-
-    try {
-      const existingUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.username, username));
-
-      if (existingUser.length > 0 && existingUser[0].id !== req.user?.id) {
-        return res.status(400).json({ message: "Username already taken" });
-      }
-
-      const [updatedUser] = await db
-        .update(users)
-        .set({ username, title, bio })
-        .where(eq(users.id, req.user!.id))
-        .returning({
-          id: users.id,
-          username: users.username,
-          avatar: users.avatar,
-          title: users.title,
-          bio: users.bio,
-        });
-
-      const cleanUser = {
-        ...updatedUser,
-        avatar: updatedUser.avatar || undefined,
-        title: updatedUser.title || undefined,
-        bio: updatedUser.bio || undefined
-      };
-
-      req.session.user = cleanUser;
-      res.json({ message: "Profile updated successfully", user: cleanUser });
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update profile" });
-    }
   });
 
   // New endpoint for avatar upload
