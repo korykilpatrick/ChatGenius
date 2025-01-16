@@ -48,7 +48,7 @@ export default function MessageInput({
 
   const searchUsers = useCallback(async (query: string) => {
     try {
-      const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/users/_search?query=${encodeURIComponent(query)}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Failed to search users');

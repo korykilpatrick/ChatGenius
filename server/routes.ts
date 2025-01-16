@@ -124,8 +124,33 @@ export function registerRoutes(app: Express): Server {
   //  USER ENDPOINTS
   // ==============
 
-  // GET users search
-  app.get("/api/users/search", async (req, res) => {
+  // GET users
+  app.get("/api/users", async (req, res) => {
+    try {
+      const currentUserId = req.user?.id;
+      console.log("Fetching users. Current user:", currentUserId);
+
+      const usersList = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          status: users.status,
+          lastSeen: users.lastSeen,
+        })
+        .from(users)
+        .where(currentUserId ? not(eq(users.id, currentUserId)) : undefined)
+        .orderBy(asc(users.username));
+
+      res.json(usersList);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // GET users search - must be before the :id route
+  app.get("/api/users/_search", async (req, res) => {
     try {
       const { query } = req.query;
       if (typeof query !== "string") {
@@ -150,31 +175,6 @@ export function registerRoutes(app: Express): Server {
         message: "Failed to search users",
         error: error instanceof Error ? error.message : String(error)
       });
-    }
-  });
-
-  // GET users
-  app.get("/api/users", async (req, res) => {
-    try {
-      const currentUserId = req.user?.id;
-      console.log("Fetching users. Current user:", currentUserId);
-
-      const usersList = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          avatar: users.avatar,
-          status: users.status,
-          lastSeen: users.lastSeen,
-        })
-        .from(users)
-        .where(currentUserId ? not(eq(users.id, currentUserId)) : undefined)
-        .orderBy(asc(users.username));
-
-      res.json(usersList);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Failed to fetch users" });
     }
   });
 
