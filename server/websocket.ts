@@ -330,7 +330,7 @@ export function setupWebSocket(server: Server) {
                         .where(eq(users.id, user.id))
                         .limit(1);
 
-                      const aiResponse = {
+                      const aiMessageResponse = {
                         type: "message_created",
                         payload: {
                           message: {
@@ -344,7 +344,7 @@ export function setupWebSocket(server: Server) {
                       // Broadcast AI message to all connected clients
                       for (const client of clients) {
                         if (client.readyState === WebSocket.OPEN) {
-                          client.send(JSON.stringify(aiResponse));
+                          client.send(JSON.stringify(aiMessageResponse));
                         }
                       }
                   }
