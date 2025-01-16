@@ -233,7 +233,9 @@ export default function MessageInput({
     setFiles([]);
     setIsMentioning(false);
     setMentionQuery("");
+    setMentionUsers([]);
     setTriggerPosition(null);
+    setActiveMentionIndex(0);
   };
 
   return (
