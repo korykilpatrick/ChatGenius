@@ -180,56 +180,60 @@ export default function ProfilePage() {
               </div>
 
               {useUrlAvatar ? (
-                <FormField
-                  control={form.control}
-                  name="avatarUrl"
-                  render={({ field }) => (
-                    <FormItem className="w-full">
-                      <FormControl>
-                        <Input
-                          placeholder="Enter avatar URL"
-                          {...field}
-                          onChange={async (e) => {
-                            field.onChange(e);
-                            if (e.target.value) {
-                              try {
-                                const response = await fetch("/api/user/avatar-url", {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                  },
-                                  credentials: "include",
-                                  body: JSON.stringify({ avatarUrl: e.target.value }),
-                                });
-                                
-                                if (response.ok) {
-                                  await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-                                  toast({
-                                    title: "Success",
-                                    description: "Avatar updated successfully",
-                                  });
-                                } else {
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to update avatar",
-                                    variant: "destructive",
-                                  });
+                <Form {...form}>
+                  <form className="w-full">
+                    <FormField
+                      control={form.control}
+                      name="avatarUrl"
+                      render={({ field }) => (
+                        <FormItem className="w-full">
+                          <FormControl>
+                            <Input
+                              placeholder="Enter avatar URL"
+                              {...field}
+                              onChange={async (e) => {
+                                field.onChange(e);
+                                if (e.target.value) {
+                                  try {
+                                    const response = await fetch("/api/user/avatar-url", {
+                                      method: "POST",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      credentials: "include",
+                                      body: JSON.stringify({ avatarUrl: e.target.value }),
+                                    });
+                                    
+                                    if (response.ok) {
+                                      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                                      toast({
+                                        title: "Success",
+                                        description: "Avatar updated successfully",
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to update avatar",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (error) {
+                                    toast({
+                                      title: "Error",
+                                      description: "Failed to update avatar",
+                                      variant: "destructive",
+                                    });
+                                  }
                                 }
-                              } catch (error) {
-                                toast({
-                                  title: "Error",
-                                  description: "Failed to update avatar",
-                                  variant: "destructive",
-                                });
-                              }
-                            }
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                              }}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </form>
+                </Form>
               ) : (
                 <div className="flex items-center space-x-2">
                   <input
