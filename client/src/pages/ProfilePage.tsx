@@ -175,95 +175,93 @@ export default function ProfilePage() {
                   <AvatarFallback>{user?.username?.[0].toUpperCase()}</AvatarFallback>
                 </Avatar>
               </div>
+            </div>
 
-              {isEditing && (
-                <>
-                  <div className="flex items-center space-x-2">
-                    <Label htmlFor="useUrlAvatar">Use URL for avatar</Label>
-                    <Switch
-                      id="useUrlAvatar"
-                      checked={useUrlAvatar}
-                      onCheckedChange={setUseUrlAvatar}
-                    />
-                  </div>
+            {isEditing ? (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-center space-x-2 justify-center">
+                      <Label htmlFor="useUrlAvatar">Use URL for avatar</Label>
+                      <Switch
+                        id="useUrlAvatar"
+                        checked={useUrlAvatar}
+                        onCheckedChange={setUseUrlAvatar}
+                      />
+                    </div>
 
-                  {useUrlAvatar ? (
-                    <FormField
-                      control={form.control}
-                      name="avatarUrl"
-                      render={({ field }) => (
-                        <FormItem className="w-full">
-                          <FormControl>
-                            <Input
-                              placeholder="Enter avatar URL"
-                              {...field}
-                              onChange={async (e) => {
-                                field.onChange(e);
-                                if (e.target.value) {
-                                  try {
-                                    const response = await fetch("/api/user/avatar-url", {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                      },
-                                      credentials: "include",
-                                      body: JSON.stringify({ avatarUrl: e.target.value }),
-                                    });
-                                    
-                                    if (response.ok) {
-                                      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-                                      toast({
-                                        title: "Success",
-                                        description: "Avatar updated successfully",
+                    {useUrlAvatar ? (
+                      <FormField
+                        control={form.control}
+                        name="avatarUrl"
+                        render={({ field }) => (
+                          <FormItem className="w-full">
+                            <FormControl>
+                              <Input
+                                placeholder="Enter avatar URL"
+                                {...field}
+                                onChange={async (e) => {
+                                  field.onChange(e);
+                                  if (e.target.value) {
+                                    try {
+                                      const response = await fetch("/api/user/avatar-url", {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        credentials: "include",
+                                        body: JSON.stringify({ avatarUrl: e.target.value }),
                                       });
-                                    } else {
+                                      
+                                      if (response.ok) {
+                                        await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                                        toast({
+                                          title: "Success",
+                                          description: "Avatar updated successfully",
+                                        });
+                                      } else {
+                                        toast({
+                                          title: "Error",
+                                          description: "Failed to update avatar",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    } catch (error) {
                                       toast({
                                         title: "Error",
                                         description: "Failed to update avatar",
                                         variant: "destructive",
                                       });
                                     }
-                                  } catch (error) {
-                                    toast({
-                                      title: "Error",
-                                      description: "Failed to update avatar",
-                                      variant: "destructive",
-                                    });
                                   }
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleAvatarUpload}
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                      <Button
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        {isUploading ? "Uploading..." : "Upload Avatar"}
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                    ) : (
+                      <div className="flex items-center justify-center space-x-2">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          <Camera className="h-4 w-4 mr-2" />
+                          {isUploading ? "Uploading..." : "Upload Avatar"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-            {isEditing ? (
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="username"
