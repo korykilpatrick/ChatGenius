@@ -310,7 +310,7 @@ export default function ProfilePage() {
                 <div>
                   <Label>AI Response</Label>
                   <p className="mt-1 text-muted-foreground">
-                    {user?.aiResponseEnabled ? "Enabled" : "Disabled"}
+                    {user?.aiResponseEnabled === true ? "Enabled" : "Disabled"}
                   </p>
                 </div>
 
