@@ -193,6 +193,7 @@ export function registerRoutes(app: Express): Server {
     }
 
     try {
+      // Update the user in the database
       await db
         .update(users)
         .set({
@@ -216,7 +217,27 @@ export function registerRoutes(app: Express): Server {
         .from(users)
         .where(eq(users.id, userId));
 
-      res.json({ user: updated });
+      // Update session with fresh data
+      if (req.session) {
+        req.session.user = {
+          ...updated,
+          avatar: updated.avatar || undefined,
+          title: updated.title || undefined,
+          bio: updated.bio || undefined,
+          aiResponseEnabled: Boolean(updated.aiResponseEnabled)
+        };
+      }
+
+      // Return formatted user data
+      const formattedUser = {
+        ...updated,
+        avatar: updated.avatar || undefined,
+        title: updated.title || undefined,
+        bio: updated.bio || undefined,
+        aiResponseEnabled: Boolean(updated.aiResponseEnabled)
+      };
+
+      res.json({ user: formattedUser });
     } catch (error) {
       console.error("Failed to update user profile:", error);
       res
