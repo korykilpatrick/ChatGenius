@@ -160,29 +160,93 @@ export default function ProfilePage() {
             <CardTitle className="text-2xl">Profile Settings</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="mb-6 flex flex-col items-center">
+            <div className="mb-6 flex flex-col items-center space-y-4">
               <div className="relative">
                 <Avatar className="h-24 w-24">
                   <AvatarImage src={user?.avatar} />
                   <AvatarFallback>{user?.username?.[0].toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="absolute bottom-0 right-0 rounded-full"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
               </div>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-              />
+
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="useUrlAvatar">Use URL for avatar</Label>
+                <Switch
+                  id="useUrlAvatar"
+                  checked={useUrlAvatar}
+                  onCheckedChange={setUseUrlAvatar}
+                />
+              </div>
+
+              {useUrlAvatar ? (
+                <FormField
+                  control={form.control}
+                  name="avatarUrl"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormControl>
+                        <Input
+                          placeholder="Enter avatar URL"
+                          {...field}
+                          onChange={async (e) => {
+                            field.onChange(e);
+                            if (e.target.value) {
+                              try {
+                                const response = await fetch("/api/user/avatar-url", {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                  credentials: "include",
+                                  body: JSON.stringify({ avatarUrl: e.target.value }),
+                                });
+                                
+                                if (response.ok) {
+                                  await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+                                  toast({
+                                    title: "Success",
+                                    description: "Avatar updated successfully",
+                                  });
+                                } else {
+                                  toast({
+                                    title: "Error",
+                                    description: "Failed to update avatar",
+                                    variant: "destructive",
+                                  });
+                                }
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to update avatar",
+                                  variant: "destructive",
+                                });
+                              }
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {isUploading ? "Uploading..." : "Upload Avatar"}
+                  </Button>
+                </div>
+              )}
             </div>
 
             {isEditing ? (
