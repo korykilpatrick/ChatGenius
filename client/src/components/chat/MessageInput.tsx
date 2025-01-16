@@ -107,11 +107,9 @@ export default function MessageInput({
         const noSpacesBetweenAtAndCursor = textBetweenAtAndCursor.indexOf(" ") === -1;
 
         if (cursorIsAfterAt && noSpacesBetweenAtAndCursor) {
-          // Always update mention query and search when content changes
-          if (query !== mentionQuery) {
-            setMentionQuery(query);
-            searchUsers(query);
-          }
+          setIsMentioning(true);
+          setMentionQuery(query);
+          searchUsers(query);
 
           // Calculate dropdown position
           const textBeforeCaret = newContent.slice(0, selectionEnd);
@@ -128,7 +126,6 @@ export default function MessageInput({
           const left = rect.left + (charsInCurrentLine * charWidth);
 
           setTriggerPosition({ top, left });
-          setIsMentioning(true);
         } else {
           setIsMentioning(false);
           setTriggerPosition(null);
@@ -150,7 +147,7 @@ export default function MessageInput({
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveMentionIndex((prev) => (prev - 1 + mentionUsers.length) % mentionUsers.length);
-      } else if (e.key === "Enter") {
+      } else if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         handleMentionSelect(mentionUsers[activeMentionIndex]);
       } else if (e.key === "Escape") {
