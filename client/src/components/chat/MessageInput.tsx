@@ -97,6 +97,7 @@ export default function MessageInput({
       const spaceAfterAt = textAfterAt.indexOf(" ");
       const query = spaceAfterAt === -1 ? textAfterAt : textAfterAt.slice(0, spaceAfterAt);
 
+      // Only search if we have a query and it's different from the current one
       if (query !== mentionQuery) {
         setMentionQuery(query);
         if (query) {
@@ -104,10 +105,14 @@ export default function MessageInput({
         }
       }
 
-      if (!isMentioning) {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const { selectionEnd } = textarea;
+      // Check if we're at the @ symbol position
+      const textarea = textareaRef.current;
+      if (textarea) {
+        const { selectionEnd } = textarea;
+        const cursorIsAfterAt = selectionEnd > lastAtIndex;
+        const noSpacesBetweenAtAndCursor = newContent.slice(lastAtIndex, selectionEnd).indexOf(" ") === -1;
+        
+        if (cursorIsAfterAt && noSpacesBetweenAtAndCursor) {
           const textBeforeCaret = newContent.slice(0, selectionEnd);
           const lines = textBeforeCaret.split("\n");
           const currentLineIndex = lines.length - 1;
@@ -117,15 +122,17 @@ export default function MessageInput({
           const lineHeight = parseInt(getComputedStyle(textarea).lineHeight);
           const top = rect.top + (currentLineIndex * lineHeight) + lineHeight;
           
-          // Approximate the left position based on character width
-          const charWidth = 8; // Approximate character width in pixels
+          const charWidth = 8;
           const charsInCurrentLine = currentLine.length;
           const left = rect.left + (charsInCurrentLine * charWidth);
 
           setTriggerPosition({ top, left });
+          setIsMentioning(true);
+          setActiveMentionIndex(0);
+        } else {
+          setIsMentioning(false);
+          setTriggerPosition(null);
         }
-        setIsMentioning(true);
-        setActiveMentionIndex(0);
       }
     } else {
       setIsMentioning(false);
@@ -142,7 +149,7 @@ export default function MessageInput({
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveMentionIndex((prev) => (prev - 1 + mentionUsers.length) % mentionUsers.length);
-      } else if (e.key === "Enter" && !e.shiftKey) {
+      } else if (e.key === "Enter") {
         e.preventDefault();
         handleMentionSelect(mentionUsers[activeMentionIndex]);
       } else if (e.key === "Escape") {
@@ -151,7 +158,10 @@ export default function MessageInput({
         setMentionQuery("");
         setTriggerPosition(null);
       }
-    } else if (e.key === "Enter" && !e.shiftKey) {
+      return;
+    }
+    
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
