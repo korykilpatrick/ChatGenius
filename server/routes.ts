@@ -187,7 +187,7 @@ export function registerRoutes(app: Express): Server {
     }
     const userId = req.user.id;
 
-    const { username, title, bio } = req.body;
+    const { username, title, bio, aiResponseEnabled } = req.body;
     if (!username || username.length < 3) {
       return res.status(400).json({ message: "Invalid username" });
     }
@@ -199,6 +199,7 @@ export function registerRoutes(app: Express): Server {
           username,
           title: title || null,
           bio: bio || null,
+          aiResponseEnabled: aiResponseEnabled ?? false,
         })
         .where(eq(users.id, userId));
 
@@ -210,6 +211,7 @@ export function registerRoutes(app: Express): Server {
           avatar: users.avatar,
           title: users.title,
           bio: users.bio,
+          aiResponseEnabled: users.aiResponseEnabled,
         })
         .from(users)
         .where(eq(users.id, userId));
