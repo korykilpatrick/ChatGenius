@@ -49,13 +49,22 @@ export default function MessageInput({
   const searchUsers = useCallback(async (query: string) => {
     try {
       const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`);
-      if (!response.ok) throw new Error("Failed to search users");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to search users');
+      }
       const users = await response.json();
       setMentionUsers(users);
     } catch (error) {
       console.error("Error searching users:", error);
+      toast({
+        title: "Error searching users",
+        description: error instanceof Error ? error.message : "Failed to search users",
+        variant: "destructive",
+      });
+      setMentionUsers([]);
     }
-  }, []);
+  }, [toast]);
 
   const handleMentionSelect = (selectedUser: User) => {
     const beforeMention = content.slice(0, content.lastIndexOf("@"));
