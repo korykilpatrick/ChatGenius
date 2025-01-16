@@ -127,10 +127,6 @@ export default function MessageInput({
 
           setTriggerPosition({ top, left });
           setIsMentioning(true);
-          setActiveMentionIndex(0);
-        } else {
-          setIsMentioning(false);
-          setTriggerPosition(null);
         }
       }
     } else {
