@@ -8,8 +8,11 @@ import {
   directMessages,
   directMessageParticipants,
   directMessageConversations,
+  User,
+  DirectMessage,
+  Message as DBMessage,
 } from "@db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, not } from "drizzle-orm";
 import { AIAvatarService } from "./rag/AIAvatarService";
 
 interface ExtendedWebSocket extends WebSocket {
@@ -20,6 +23,13 @@ interface ExtendedWebSocket extends WebSocket {
 interface WebSocketMessage {
   type: string;
   payload: Record<string, any>;
+}
+
+interface UserWithAIEnabled {
+  id: number;
+  username: string;
+  avatar: string | null;
+  aiResponseEnabled: boolean;
 }
 
 export function setupWebSocket(server: Server) {
@@ -117,6 +127,68 @@ export function setupWebSocket(server: Server) {
                 .where(eq(directMessageParticipants.conversationId, conversationId));
 
               const participantIds = new Set(participants.map((p) => p.userId));
+
+              // Get the recipient's user data to check aiResponseEnabled
+              const recipients = await db
+                .select({
+                  id: users.id,
+                  username: users.username,
+                  avatar: users.avatar,
+                  aiResponseEnabled: users.aiResponseEnabled,
+                })
+                .from(directMessageParticipants)
+                .innerJoin(users, eq(users.id, directMessageParticipants.userId))
+                .where(
+                  and(
+                    eq(directMessageParticipants.conversationId, conversationId),
+                    not(eq(directMessageParticipants.userId, senderId))
+                  )
+                )
+                .limit(1);
+
+              const recipient = recipients[0] as UserWithAIEnabled;
+
+              // If recipient has aiResponseEnabled, generate AI response
+              if (recipient?.aiResponseEnabled) {
+                const aiService = new AIAvatarService();
+                await aiService.initialize();
+                const aiResponse = await aiService.generateAvatarResponse(recipient.id, newMessage);
+
+                // Create AI response message
+                const [aiMessage] = await db
+                  .insert(directMessages)
+                  .values({
+                    conversationId,
+                    content: aiResponse,
+                    senderId: recipient.id,
+                    files: [],
+                    parentId: null,
+                  })
+                  .returning();
+
+                // Broadcast AI message
+                const aiMessageResponse = {
+                  type: "message_created",
+                  payload: {
+                    message: {
+                      ...aiMessage,
+                      files: [],
+                    },
+                    user: recipient,
+                  },
+                };
+
+                // Broadcast to conversation participants
+                for (const client of clients) {
+                  if (
+                    client.readyState === WebSocket.OPEN &&
+                    client.userId &&
+                    participantIds.has(client.userId)
+                  ) {
+                    client.send(JSON.stringify(aiMessageResponse));
+                  }
+                }
+              }
 
               // Build the WS response
               const response = {
@@ -271,102 +343,114 @@ export function setupWebSocket(server: Server) {
           }
 
         } else if (message.type === "new_message") {
-          // Channel message
-          const { channelId, content, userId, parentId, files } = message.payload;
-          if (!channelId || !content || !userId) return;
+          const { channelId, content, userId, files, parentId } = message.payload;
+          console.log("[WebSocket] Attempting to insert message:", {
+            channelId,
+            content,
+            userId,
+            parentId: parentId || null,
+            files: files || [],
+          });
+          if (!channelId || !content || !userId) {
+            console.error("[WebSocket] Invalid payload:", message.payload);
+            return;
+          }
 
           try {
+            // Insert the message
             const [newMessage] = await db
               .insert(messages)
               .values({
                 channelId,
                 content,
                 userId,
-                parentId: parentId || null,
                 files: files || [],
+                parentId: parentId || null,
               })
               .returning();
 
-            if (newMessage) {
-              const [userData] = await db
+            // Get user data for the message sender
+            const [userData] = await db
+              .select({
+                id: users.id,
+                username: users.username,
+                avatar: users.avatar,
+              })
+              .from(users)
+              .where(eq(users.id, userId))
+              .limit(1);
+
+            // Check for @mentions
+            const mentionMatch = content.match(/^@(\w+)/);
+            if (mentionMatch) {
+              const mentionedUsername = mentionMatch[1];
+              
+              // Find the mentioned user and check their aiResponseEnabled setting
+              const [mentionedUser] = await db
                 .select({
                   id: users.id,
                   username: users.username,
                   avatar: users.avatar,
+                  aiResponseEnabled: users.aiResponseEnabled,
                 })
                 .from(users)
-                .where(eq(users.id, userId))
+                .where(eq(users.username, mentionedUsername))
                 .limit(1);
-                // check if someone is being mentioned in the message, which triggers an avatar response
-              const pattern = /^@(\S+)\s+(.+)$/;
-              const match = content.match(pattern);
-              if (match) {
-                  const username = match[1];
-                  const content = match[2].trim();
-                  console.log('matched', username, content, newMessage, userData)
-                  // query db for user
-                  const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
-                  if (user) {
-                      const aiService = new AIAvatarService();
-                      await aiService.initialize();
-                      const aiResponse = await aiService.generateAvatarResponse(user.id, newMessage)
-                    // create a new message with the avatar response
-                      console.log('aiResponse', aiResponse);
-                      const [aiMessage] = await db.insert(messages).values({
-                        channelId,
-                        content: aiResponse,
-                        userId: user.id,
-                        parentId: null,
-                      }).returning();
 
-                      // Fetch AI user data and broadcast the message
-                      const [aiUserData] = await db
-                        .select({
-                          id: users.id,
-                          username: users.username,
-                          avatar: users.avatar,
-                        })
-                        .from(users)
-                        .where(eq(users.id, user.id))
-                        .limit(1);
+              if (mentionedUser?.aiResponseEnabled) {
+                const aiService = new AIAvatarService();
+                await aiService.initialize();
+                const aiResponse = await aiService.generateAvatarResponse(mentionedUser.id, newMessage);
 
-                      const aiMessageResponse = {
-                        type: "message_created",
-                        payload: {
-                          message: {
-                            ...aiMessage,
-                            files: [],
-                          },
-                          user: aiUserData,
-                        },
-                      };
+                // Create AI response message
+                const [aiMessage] = await db
+                  .insert(messages)
+                  .values({
+                    channelId,
+                    content: aiResponse,
+                    userId: mentionedUser.id,
+                    files: [],
+                    parentId: null,
+                  })
+                  .returning();
 
-                      // Broadcast AI message to all connected clients
-                      for (const client of clients) {
-                        if (client.readyState === WebSocket.OPEN) {
-                          client.send(JSON.stringify(aiMessageResponse));
-                        }
-                      }
-                  }
-              }
-
-              if (userData) {
-                const response = {
+                // Broadcast AI message
+                const aiMessageResponse = {
                   type: "message_created",
                   payload: {
                     message: {
-                      ...newMessage,
-                      files: newMessage.files || [],
+                      ...aiMessage,
+                      files: [],
                     },
-                    user: userData,
+                    user: mentionedUser,
                   },
                 };
 
                 // Broadcast to all connected clients
                 for (const client of clients) {
                   if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify(response));
+                    client.send(JSON.stringify(aiMessageResponse));
                   }
+                }
+              }
+            }
+
+            if (userData) {
+              const response = {
+                type: "message_created",
+                payload: {
+                  message: {
+                    ...newMessage,
+                    files: newMessage.files || [],
+                  },
+                  user: userData,
+                },
+              };
+
+              // Broadcast to all connected clients
+              for (const client of clients) {
+                if (client.readyState === WebSocket.OPEN) {
+                  client.send(JSON.stringify(response));
                 }
               }
             }
