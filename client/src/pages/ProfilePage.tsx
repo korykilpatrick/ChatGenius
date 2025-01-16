@@ -29,6 +29,7 @@ const profileSchema = z.object({
   title: z.string().max(100, "Title must be less than 100 characters").optional(),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
   aiResponseEnabled: z.boolean(),
+  avatarUrl: z.string().url("Please enter a valid URL").optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -37,6 +38,7 @@ export default function ProfilePage() {
   const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [useUrlAvatar, setUseUrlAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -98,42 +100,22 @@ export default function ProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Error",
-        description: "File size must be less than 5MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!file.type.match(/image\/(jpeg|jpg|png|gif)/)) {
-      toast({
-        title: "Error",
-        description: "Only image files are allowed",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    setIsUploading(true);
     const formData = new FormData();
     formData.append("avatar", file);
 
     try {
-      setIsUploading(true);
       const response = await fetch("/api/user/avatar", {
         method: "POST",
-        body: formData,
         credentials: "include",
+        body: formData,
       });
 
       if (!response.ok) {
         throw new Error("Failed to upload avatar");
       }
 
-      await queryClient.invalidateQueries(["/api/user"]);
-      await queryClient.invalidateQueries(["/api/users"]);
-
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({
         title: "Success",
         description: "Avatar updated successfully",

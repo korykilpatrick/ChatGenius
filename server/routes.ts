@@ -286,6 +286,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add avatar URL endpoint
+  app.post("/api/user/avatar-url", async (req, res) => {
+    try {
+      const { avatarUrl } = req.body;
+      
+      if (!avatarUrl) {
+        return res.status(400).json({ message: "Avatar URL is required" });
+      }
+
+      // Validate URL
+      try {
+        new URL(avatarUrl);
+      } catch (e) {
+        return res.status(400).json({ message: "Invalid URL" });
+      }
+
+      // Update user's avatar in database
+      await db
+        .update(users)
+        .set({ avatar: avatarUrl })
+        .where(eq(users.id, req.user!.id));
+
+      res.json({ message: "Avatar URL updated successfully" });
+    } catch (error) {
+      console.error("Error updating avatar URL:", error);
+      res.status(500).json({ message: "Failed to update avatar URL" });
+    }
+  });
+
   /**
    * =====================
    *     DIRECT MESSAGES
