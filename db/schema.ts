@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   title: text("title"),
   bio: text("bio"),
   lastSeen: timestamp("last_seen").defaultNow(),
+  aiResponseEnabled: boolean("ai_response_enabled").default(false).notNull(),
 });
 
 export const channels = pgTable("channels", {

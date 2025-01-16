@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,6 +20,7 @@ import {
   FormField,
   FormItem,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,6 +29,7 @@ const profileSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   title: z.string().max(100, "Title must be less than 100 characters").optional(),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
+  aiResponseEnabled: z.boolean(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -45,6 +48,7 @@ export default function ProfilePage() {
       username: user?.username || "",
       title: user?.title || "",
       bio: user?.bio || "",
+      aiResponseEnabled: user?.aiResponseEnabled || false,
     },
   });
 
@@ -64,8 +68,8 @@ export default function ProfilePage() {
       }
 
       // Re-fetch user info so changes appear immediately
-      await queryClient.invalidateQueries(["/api/user"]);
-      await queryClient.invalidateQueries(["/api/users"]);
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
 
       setIsEditing(false);
       toast({
@@ -243,6 +247,27 @@ export default function ProfilePage() {
                     )}
                   />
 
+                  <FormField
+                    control={form.control}
+                    name="aiResponseEnabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <Label className="text-base">AI Response</Label>
+                          <FormDescription>
+                            Enable AI responses when you are mentioned in channels
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
                   <div className="flex gap-2">
                     <Button type="submit">Save</Button>
                     <Button
@@ -279,6 +304,13 @@ export default function ProfilePage() {
                   <Label>Bio</Label>
                   <p className="mt-1 text-muted-foreground">
                     {user?.bio || "No bio set"}
+                  </p>
+                </div>
+
+                <div>
+                  <Label>AI Response</Label>
+                  <p className="mt-1 text-muted-foreground">
+                    {user?.aiResponseEnabled ? "Enabled" : "Disabled"}
                   </p>
                 </div>
 
