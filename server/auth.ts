@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import session from "express-session";
 import multer from "multer";
 import path from "path";
-import crypto from 'crypto'; // Added import for crypto
+import crypto from 'crypto';
 import MemoryStore from "memorystore";
 
 // Configure multer for handling file uploads
@@ -47,8 +47,9 @@ declare module "express-session" {
       avatar?: string;
       title?: string;
       bio?: string;
-      status?: string; // Added status field
-      lastSeen?: Date; //Added lastSeen field
+      status?: string; 
+      lastSeen?: Date; 
+      aiResponseEnabled?: boolean; // Added aiResponseEnabled field
     } | undefined;
   }
 }
@@ -62,8 +63,9 @@ declare global {
         avatar?: string;
         title?: string;
         bio?: string;
-        status?: string; // Added status field
-        lastSeen?: Date; //Added lastSeen field
+        status?: string; 
+        lastSeen?: Date; 
+        aiResponseEnabled?: boolean; // Added aiResponseEnabled field
       };
       isAuthenticated(): boolean;
     }
@@ -246,11 +248,48 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    res.json(req.user);
+
+    try {
+      // Fetch fresh user data from database
+      const [userData] = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatar: users.avatar,
+          title: users.title,
+          bio: users.bio,
+          aiResponseEnabled: users.aiResponseEnabled,
+          status: users.status,
+          lastSeen: users.lastSeen
+        })
+        .from(users)
+        .where(eq(users.id, req.user!.id))
+        .limit(1);
+
+      if (!userData) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Clean up null values and format response
+      const cleanUser = {
+        ...userData,
+        avatar: userData.avatar || undefined,
+        title: userData.title || undefined,
+        bio: userData.bio || undefined,
+        status: userData.status || undefined,
+        lastSeen: userData.lastSeen || undefined,
+        aiResponseEnabled: Boolean(userData.aiResponseEnabled)
+      };
+
+      res.json(cleanUser);
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      res.status(500).json({ message: "Failed to fetch user data" });
+    }
   });
 
   // New endpoint for avatar upload
