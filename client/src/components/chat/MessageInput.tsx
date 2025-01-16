@@ -55,6 +55,7 @@ export default function MessageInput({
       }
       const users = await response.json();
       setMentionUsers(users);
+      setIsMentioning(true);
     } catch (error) {
       console.error("Error searching users:", error);
       toast({
@@ -106,10 +107,11 @@ export default function MessageInput({
         const noSpacesBetweenAtAndCursor = textBetweenAtAndCursor.indexOf(" ") === -1;
 
         if (cursorIsAfterAt && noSpacesBetweenAtAndCursor) {
-          // Set mention state and search users
-          setIsMentioning(true);
-          setMentionQuery(query);
-          searchUsers(query);
+          // Always update mention query and search when content changes
+          if (query !== mentionQuery) {
+            setMentionQuery(query);
+            searchUsers(query);
+          }
 
           // Calculate dropdown position
           const textBeforeCaret = newContent.slice(0, selectionEnd);
@@ -126,6 +128,7 @@ export default function MessageInput({
           const left = rect.left + (charsInCurrentLine * charWidth);
 
           setTriggerPosition({ top, left });
+          setIsMentioning(true);
         } else {
           setIsMentioning(false);
           setTriggerPosition(null);
