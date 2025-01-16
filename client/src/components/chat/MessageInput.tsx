@@ -97,12 +97,6 @@ export default function MessageInput({
       const spaceAfterAt = textAfterAt.indexOf(" ");
       const query = spaceAfterAt === -1 ? textAfterAt : textAfterAt.slice(0, spaceAfterAt);
 
-      // Always search on empty query (right after @) or when query changes
-      if (query === "" || query !== mentionQuery) {
-        setMentionQuery(query);
-        searchUsers(query);
-      }
-
       const textarea = textareaRef.current;
       if (textarea) {
         const { selectionEnd } = textarea;
@@ -112,6 +106,12 @@ export default function MessageInput({
         const noSpacesBetweenAtAndCursor = textBetweenAtAndCursor.indexOf(" ") === -1;
 
         if (cursorIsAfterAt && noSpacesBetweenAtAndCursor) {
+          // Set mention state and search users
+          setIsMentioning(true);
+          setMentionQuery(query);
+          searchUsers(query);
+
+          // Calculate dropdown position
           const textBeforeCaret = newContent.slice(0, selectionEnd);
           const lines = textBeforeCaret.split("\n");
           const currentLineIndex = lines.length - 1;
@@ -126,7 +126,9 @@ export default function MessageInput({
           const left = rect.left + (charsInCurrentLine * charWidth);
 
           setTriggerPosition({ top, left });
-          setIsMentioning(true);
+        } else {
+          setIsMentioning(false);
+          setTriggerPosition(null);
         }
       }
     } else {
