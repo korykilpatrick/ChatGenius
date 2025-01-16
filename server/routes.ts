@@ -90,7 +90,8 @@ export function registerRoutes(app: Express): Server {
       req.path.startsWith("/api/login") ||
       req.path.startsWith("/api/register") ||
       (req.path.startsWith("/api/user") && req.method === "GET") ||
-      (req.path.startsWith("/api/users/") && req.method === "GET")
+      (req.path.startsWith("/api/users/") && req.method === "GET") ||
+      req.path === "/api/users/_search"
     ) {
       return next();
     }
