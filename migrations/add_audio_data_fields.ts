@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { db } from "../db";
+import { db } from "@db";
 
 export async function up() {
   await db.execute(sql`
@@ -20,4 +20,4 @@ export async function down() {
     ALTER TABLE direct_messages 
     DROP COLUMN audio_data;
   `);
-} 
+}
