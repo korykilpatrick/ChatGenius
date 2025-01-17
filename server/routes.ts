@@ -31,6 +31,7 @@ import fs from "fs";
 import mime from "mime-types";
 import express from "express";
 import { WebSocket } from "ws";
+import voiceRoutes from "./voice/routes";
 
 // Configure multer for file uploads
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
@@ -104,6 +105,10 @@ export function registerRoutes(app: Express): Server {
 
   // Serve uploaded files
   app.use("/uploads", express.static(UPLOAD_DIR));
+  app.use("/uploads/audio", express.static(path.join(process.cwd(), "uploads", "audio")));
+
+  // Register voice routes
+  app.use("/api/voice", voiceRoutes);
 
   // File upload endpoint
   app.post("/api/upload", upload.array("files", 5), (req, res) => {
