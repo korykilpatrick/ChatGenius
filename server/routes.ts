@@ -558,10 +558,12 @@ export function registerRoutes(app: Express): Server {
           conversationId: directMessages.conversationId,
           files: directMessages.files,
           reactions: directMessages.reactions,
+          audioData: directMessages.audioData,
           sender: {
             id: users.id,
             username: users.username,
             avatar: users.avatar,
+            elevenlabsId: users.elevenlabsId,
           },
         })
         .from(directMessages)
@@ -692,6 +694,7 @@ export function registerRoutes(app: Express): Server {
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          elevenlabsId: users.elevenlabsId,
         },
       })
       .from(messages)
@@ -729,6 +732,7 @@ export function registerRoutes(app: Express): Server {
           id: users.id,
           username: users.username,
           avatar: users.avatar,
+          elevenlabsId: users.elevenlabsId,
         },
       })
       .from(messages)

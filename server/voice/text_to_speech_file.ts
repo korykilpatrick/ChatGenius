@@ -8,6 +8,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const DEFAULT_VOICE = "Rachel";
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "audio");
 
 const client = new ElevenLabsClient({
@@ -25,14 +26,15 @@ const ensureUploadDir = async () => {
 };
 
 export const createAudioFileFromText = async (
-  text: string
+  text: string,
+  voiceId?: string
 ): Promise<string> => {
   return new Promise<string>(async (resolve, reject) => {
     try {
       await ensureUploadDir();
-      
+      console.log("voiceId", voiceId);
       const audio = await client.generate({
-        voice: "Rachel",
+        voice: voiceId || DEFAULT_VOICE,
         model_id: "eleven_turbo_v2_5",
         text,
       });
