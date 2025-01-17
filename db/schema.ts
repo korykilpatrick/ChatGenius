@@ -14,6 +14,7 @@ export const users = pgTable("users", {
   bio: text("bio"),
   lastSeen: timestamp("last_seen").defaultNow(),
   aiResponseEnabled: boolean("ai_response_enabled").default(false).notNull(),
+  elevenlabsId: text("elevenlabs_id"),
 });
 
 export const channels = pgTable("channels", {
