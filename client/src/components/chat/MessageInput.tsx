@@ -296,7 +296,7 @@ export default function MessageInput({
           value={content}
           onChange={handleContentChange}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message... Use @ to mention users"
+          placeholder="Type a message..."
           className="min-h-[80px]"
         />
         <Button

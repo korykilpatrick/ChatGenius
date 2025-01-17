@@ -13,7 +13,9 @@ import {
   Message as DBMessage,
 } from "@db/schema";
 import { eq, and, not } from "drizzle-orm";
+import type { InferModel } from 'drizzle-orm';
 import { AIAvatarService } from "./rag/AIAvatarService";
+import { VoiceService } from "./voice/VoiceService";
 
 interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
@@ -90,7 +92,7 @@ export function setupWebSocket(server: Server) {
 
           try {
             // Insert the direct message (including parentId if it's a reply)
-            const [newMessage] = await db
+            const result = await db
               .insert(directMessages)
               .values({
                 conversationId,
@@ -99,7 +101,9 @@ export function setupWebSocket(server: Server) {
                 files: files || [],
                 parentId: parentId || null,
               })
-              .returning();
+              .returning() as InferModel<typeof directMessages>[];
+            
+            const newMessage = result[0];
             console.log("[WebSocket] Insert result:", newMessage);
 
             if (newMessage) {
@@ -180,7 +184,37 @@ export function setupWebSocket(server: Server) {
               if (recipient?.aiResponseEnabled) {
                 const aiService = new AIAvatarService();
                 await aiService.initialize();
-                const aiResponse = await aiService.generateAvatarResponse(recipient.id, newMessage);
+                
+                // Get sender's info for context
+                const [sender] = await db
+                  .select({
+                    id: users.id,
+                    username: users.username,
+                  })
+                  .from(users)
+                  .where(eq(users.id, senderId))
+                  .limit(1);
+                
+                // Ensure message has correct context for DM
+                const messageForAI = {
+                  ...newMessage,
+                  fromUserId: senderId,
+                  toUserId: recipient.id,
+                  fromUsername: sender.username,
+                  toUsername: recipient.username,
+                };
+                
+                const aiResponse = await aiService.generateAvatarResponse(recipient.id, messageForAI);
+
+                // Add voice synthesis
+                const voiceService = new VoiceService();
+                let audioData: string | undefined;
+                try {
+                  audioData = await voiceService.synthesizeText(aiResponse, recipient.id);
+                } catch (error) {
+                  console.error("[WebSocket] Voice synthesis failed:", error);
+                  // Continue without voice - it's not critical
+                }
 
                 // Create AI response message
                 const [aiMessage] = await db
@@ -191,6 +225,9 @@ export function setupWebSocket(server: Server) {
                     senderId: recipient.id,
                     files: [],
                     parentId: null,
+                    isAIGenerated: true,
+                    aiRespondingToUserId: senderId,
+                    audioData,
                   })
                   .returning();
 
@@ -201,6 +238,8 @@ export function setupWebSocket(server: Server) {
                     message: {
                       ...aiMessage,
                       files: [],
+                      isAIGenerated: true,
+                      aiRespondingToUserId: senderId,
                     },
                     user: recipient,
                   },
@@ -406,6 +445,11 @@ export function setupWebSocket(server: Server) {
             if (mentionMatch) {
               const mentionedUsername = mentionMatch[1];
               
+              // Don't generate AI response if user is mentioning themselves
+              if (mentionedUsername === userData.username) {
+                return;
+              }
+              
               // Find the mentioned user and check their aiResponseEnabled setting
               const [mentionedUser] = await db
                 .select({
@@ -421,7 +465,39 @@ export function setupWebSocket(server: Server) {
               if (mentionedUser?.aiResponseEnabled) {
                 const aiService = new AIAvatarService();
                 await aiService.initialize();
-                const aiResponse = await aiService.generateAvatarResponse(mentionedUser.id, newMessage);
+                
+                // Get message sender's info for context
+                const [sender] = await db
+                  .select({
+                    id: users.id,
+                    username: users.username,
+                  })
+                  .from(users)
+                  .where(eq(users.id, newMessage.userId))
+                  .limit(1);
+                
+                // Ensure message has correct context for channel
+                const messageForAI = {
+                  ...newMessage,
+                  userId: newMessage.userId,
+                  channelId: channelId,
+                  fromUsername: sender.username,
+                  toUsername: mentionedUsername,
+                  fromUserId: sender.id,
+                  toUserId: mentionedUser.id,
+                };
+                
+                const aiResponse = await aiService.generateAvatarResponse(mentionedUser.id, messageForAI);
+
+                // Add voice synthesis
+                const voiceService = new VoiceService();
+                let audioData: string | undefined;
+                try {
+                  audioData = await voiceService.synthesizeText(aiResponse, mentionedUser.id);
+                } catch (error) {
+                  console.error("[WebSocket] Voice synthesis failed:", error);
+                  // Continue without voice - it's not critical
+                }
 
                 // Create AI response message
                 const [aiMessage] = await db
@@ -432,6 +508,9 @@ export function setupWebSocket(server: Server) {
                     userId: mentionedUser.id,
                     files: [],
                     parentId: null,
+                    isAIGenerated: true,
+                    aiRespondingToUserId: newMessage.userId,
+                    audioData,
                   })
                   .returning();
 
@@ -442,6 +521,8 @@ export function setupWebSocket(server: Server) {
                     message: {
                       ...aiMessage,
                       files: [],
+                      isAIGenerated: true,
+                      aiRespondingToUserId: newMessage.userId,
                     },
                     user: mentionedUser,
                   },

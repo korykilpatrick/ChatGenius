@@ -5,10 +5,14 @@ export interface Message {
   createdAt: Date;
 
   // Channel message fields
-  userId?: number;    // 'messages' table
-  channelId?: number; // 'messages' table
+  userId?: number;    // The user who wrote the message
+  channelId?: number; // The channel where the message was posted
 
   // DM fields
-  fromUserId?: number; // can map to 'senderId' from direct_messages
-  toUserId?: number;   // or some logic if you want to track the recipient
+  fromUserId?: number; // The sender of the DM
+  toUserId?: number;   // The recipient of the DM
+
+  // Add a field to track if this is an AI-generated message
+  isAIGenerated?: boolean;
+  aiRespondingToUserId?: number; // The user the AI is responding to/about
 }

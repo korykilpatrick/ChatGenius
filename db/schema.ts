@@ -33,6 +33,9 @@ export const messages = pgTable("messages", {
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  isAIGenerated: boolean("is_ai_generated").default(false).notNull(),
+  aiRespondingToUserId: integer("ai_responding_to_user_id").references(() => users.id),
+  audioData: text("audio_data"),
 });
 
 export const channelMembers = pgTable("channel_members", {
@@ -72,6 +75,9 @@ export const directMessages = pgTable("direct_messages", {
   reactions: jsonb("reactions").$type<Record<string, number[]>>().default({}),
   files: jsonb("files").$type<string[]>().default([]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  isAIGenerated: boolean("is_ai_generated").default(false).notNull(),
+  aiRespondingToUserId: integer("ai_responding_to_user_id").references(() => users.id),
+  audioData: text("audio_data"),
 });
 
 // Relations

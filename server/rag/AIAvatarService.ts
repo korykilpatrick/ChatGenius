@@ -24,6 +24,8 @@ export interface Message {
   content: string;
   createdAt: Date;
   channelId?: number; // messages table
+  fromUsername?: string; // Added for AI context
+  toUsername?: string; // Added for AI context
 }
 
 export interface AvatarConfig {
@@ -32,6 +34,10 @@ export interface AvatarConfig {
   responseStyle: string;
   writingStyle: string;
   contextWindow: number;
+  messageFrequency?: {
+    avgMessagesPerDay: number;
+    lastActiveTimestamp: number;
+  };
 }
 
 //
@@ -56,7 +62,7 @@ export class AIAvatarService {
     });
     this.llm = new ChatOpenAI({
       temperature: 0.7,
-      modelName: "gpt-4o-mini", // example model
+      modelName: "gpt-4o", // example model
     });
 
     this.index = this.pineconeClient.Index(this.indexName);
@@ -209,28 +215,159 @@ export class AIAvatarService {
   }
 
   /**
-   * Generate a response “in the user’s voice/persona” to some new incoming message
+   * Calculates optimal context window based on conversation activity
+   */
+  private async calculateDynamicContextWindow(
+    message: Message,
+    avatarConfig: AvatarConfig,
+    channelKey: string
+  ): Promise<{ timeWindow: number; messageLimit: number }> {
+    // Get message frequency in this channel
+    const oneDayAgo = Math.floor(message.createdAt.getTime() / 1000) - 24 * 3600;
+    const recentMessages = await this.vectorStore!.similaritySearch("", 1000, {
+      timestamp: { $gt: oneDayAgo },
+      channelId: { $eq: channelKey },
+    });
+
+    // Calculate activity metrics
+    const messageCount = recentMessages.length;
+    const messagesPerHour = messageCount / 24;
+    
+    // Adjust time window based on activity
+    let timeWindow = 48 * 3600; // Default 48 hours
+    if (messagesPerHour > 50) {
+      // High activity channel - shorter but more intense window
+      timeWindow = 12 * 3600; // 12 hours for very active channels
+    } else if (messagesPerHour > 20) {
+      // Medium-high activity
+      timeWindow = 24 * 3600; // 24 hours
+    } else if (messagesPerHour < 5) {
+      // Low activity - extend window to capture more context
+      timeWindow = 7 * 24 * 3600; // 7 days
+    } else if (messagesPerHour < 1) {
+      // Very low activity
+      timeWindow = 30 * 24 * 3600; // 30 days
+    }
+
+    // Calculate message limit based on activity and user's typical engagement
+    let messageLimit = avatarConfig.contextWindow;
+    if (avatarConfig.messageFrequency) {
+      const userActivity = avatarConfig.messageFrequency.avgMessagesPerDay;
+      // Scale context window with user's activity level
+      const baseLimit = Math.max(50, Math.min(200, Math.floor(userActivity * 2)));
+      
+      // Adjust based on channel activity
+      if (messagesPerHour > 50) {
+        messageLimit = Math.min(baseLimit, 75); // Smaller window for high activity
+      } else if (messagesPerHour < 1) {
+        messageLimit = Math.max(baseLimit, 150); // Larger window for low activity
+      } else {
+        messageLimit = baseLimit;
+      }
+    }
+
+    return { timeWindow, messageLimit };
+  }
+
+  /**
+   * Retrieves relevant messages using semantic search
+   */
+  private async getRelevantMessages(
+    message: Message,
+    timeWindow: number,
+    messageLimit: number,
+    channelKey: string
+  ): Promise<Document[]> {
+    const timeAgo = Math.floor(message.createdAt.getTime() / 1000) - timeWindow;
+    
+    // First, get recent messages within time window
+    const timeBasedMessages = await this.vectorStore!.similaritySearch("", messageLimit, {
+      timestamp: { $gt: timeAgo },
+      channelId: { $eq: channelKey },
+    });
+
+    // Then, get semantically similar messages
+    const similarMessages = await this.vectorStore!.similaritySearch(
+      message.content || "",  // Handle potential undefined
+      Math.floor(messageLimit * 0.3),
+      {
+        channelId: { $eq: channelKey },
+      }
+    );
+
+    // Combine and deduplicate messages
+    const seenIds = new Set<string>();
+    const combinedMessages: Document[] = [];
+    
+    // Add time-based messages first
+    for (const msg of timeBasedMessages) {
+      if (!seenIds.has(msg.id)) {
+        seenIds.add(msg.id);
+        combinedMessages.push(msg);
+      }
+    }
+    
+    // Add similar messages if not already included
+    for (const msg of similarMessages) {
+      if (!seenIds.has(msg.id)) {
+        seenIds.add(msg.id);
+        combinedMessages.push(msg);
+      }
+    }
+
+    // Sort by timestamp
+    return combinedMessages.sort((a, b) => 
+      (a.metadata.timestamp as number) - (b.metadata.timestamp as number)
+    );
+  }
+
+  /**
+   * Generate a response "in the user's voice/persona" to some new incoming message
    */
   async generateAvatarResponse(
-    userId: number,
+    aiUserId: number, // The ID of the user whose AI avatar is responding
     message: Message,
   ): Promise<string> {
+    // 1. Validate that we have the correct user IDs and usernames
+    const messageFromUserId = message.channelId ? message.userId : message.fromUserId;
+    const messageToUserId = message.channelId ? undefined : message.toUserId;
+
+    // Type guard to ensure we have the required usernames
+    function hasRequiredUsernames(msg: Message): msg is Message & { fromUsername: string; toUsername: string } {
+      return Boolean(msg.fromUsername && (!msg.channelId || msg.toUsername));
+    }
+
+    if (!messageFromUserId || !hasRequiredUsernames(message)) {
+      throw new Error("Invalid message: missing sender information");
+    }
+
+    if (!message.channelId && (!messageToUserId || !message.toUsername)) {
+      throw new Error("Invalid DM: missing recipient information");
+    }
+
+    // For DMs, validate we're responding to the correct person
+    if (!message.channelId && messageToUserId !== aiUserId) {
+      throw new Error("Invalid DM: AI user is not the recipient");
+    }
+
+    // After validation, TypeScript knows these exist
+    const fromUsername = message.fromUsername;
+    const toUsername = message.toUsername;
+
     // 1. Retrieve avatar config from Pinecone
     let configDocs = await this.vectorStore!.similaritySearch(
-      `avatar-config-${userId}`,
+      `avatar-config-${aiUserId}`,
       1,
-      { type: "avatar-config", userId: { $eq: userId.toString() } },
+      { type: "avatar-config", userId: { $eq: aiUserId.toString() } },
     );
 
     if (configDocs.length === 0) {
-      // Persona not created yet, let's create it
-      const persona = await this.createAvatarPersona(userId);
+      const persona = await this.createAvatarPersona(aiUserId);
       await this.configureAvatar(persona);
-      // Re-query
       configDocs = await this.vectorStore!.similaritySearch(
-        `avatar-config-${userId}`,
+        `avatar-config-${aiUserId}`,
         1,
-        { type: "avatar-config", userId: { $eq: userId.toString() } },
+        { type: "avatar-config", userId: { $eq: aiUserId.toString() } },
       );
     }
 
@@ -238,50 +375,99 @@ export class AIAvatarService {
       configDocs[0].metadata.config,
     );
 
-    // 2. Build a retriever for the relevant conversation context
-    //    For example, only last 48 hours of messages in this channel (or DM).
-    const fortyEightHoursAgo =
-      Math.floor(message.createdAt.getTime() / 1000) - 248 * 3600;
-    const channelKey =
-      message.channelId !== undefined
-        ? message.channelId.toString()
-        : this._dmKey(message.fromUserId!, message.toUserId);
+    // 2. Calculate dynamic context window and channel key
+    if (!message.channelId && (!message.fromUserId || !message.toUserId)) {
+      throw new Error("Invalid message: missing both channelId and user IDs");
+    }
+    
+    const channelKey = message.channelId ? 
+      message.channelId.toString() : 
+      this._dmKey(message.fromUserId!, message.toUserId!);
 
+    const { timeWindow, messageLimit } = await this.calculateDynamicContextWindow(
+      message,
+      avatarConfig,
+      channelKey
+    );
+
+    // 3. Use the base retriever with our dynamic window settings
     const retriever = this.vectorStore!.asRetriever({
       filter: {
-        timestamp: { $gt: fortyEightHoursAgo },
+        timestamp: { 
+          $gt: Math.floor(message.createdAt.getTime() / 1000) - timeWindow 
+        },
         channelId: { $eq: channelKey },
       },
-      k: avatarConfig.contextWindow,
+      k: messageLimit,
     });
 
-    // 3. Construct the “contextualize question” prompt
+    // 4. Construct the "contextualize question" prompt
     const contextualizeQSystemPrompt = `
-Given a chat history and the latest user question,
-which might reference context in the chat history,
-formulate a standalone question that can be understood
-without the chat history. Do NOT answer, just reformulate if needed and otherwise return it as is.
+Given a chat history and the latest message from ${fromUsername},
+formulate a standalone message that captures what they are saying.
+Do NOT answer or respond, just reformulate their message if needed and otherwise return it as is.
 `;
     const contextualizeQPrompt = ChatPromptTemplate.fromMessages([
       ["system", contextualizeQSystemPrompt],
       new MessagesPlaceholder("chat_history"),
       ["human", "{input}"],
     ]);
+
     const historyAwareRetriever = await createHistoryAwareRetriever({
       llm: this.llm,
       retriever,
       rephrasePrompt: contextualizeQPrompt,
     });
-
-    // 4. Build the final “answer the question” prompt
+    console.log("toUsername", toUsername);
+    console.log("fromUsername", fromUsername);
+    // 5. Build the final "answer the question" prompt
     const qaSystemPrompt = `
-You are acting as [User ${userId}]'s AI avatar.
-Personality traits: ${avatarConfig.personalityTraits.join(", ")}
-Response style: ${avatarConfig.responseStyle}
-Writing style: ${avatarConfig.writingStyle}
+You are roleplaying as ${toUsername}. ${fromUsername} has just said something to you.
 
-Generate a response that matches their communication style and persona.
+IMPORTANT: You ARE ${toUsername}. You are NOT ${fromUsername}. You must respond AS ${toUsername} would respond.
+
+YOUR PERSONALITY & STYLE:
+- Core traits: ${avatarConfig.personalityTraits.join(", ")}
+- Communication style: ${avatarConfig.responseStyle}
+- Writing style: ${avatarConfig.writingStyle}
+
+RESPONSE GUIDELINES:
+1. Voice & Identity
+   - You ARE ${toUsername} - think and speak exactly as they would
+   - Never break character or speak as if you are ${fromUsername}
+   - Use ${toUsername}'s typical phrases and expressions
+   - Maintain ${toUsername}'s usual level of formality
+
+2. Content Authenticity
+   - Respond with ${toUsername}'s actual opinions and viewpoints
+   - Keep responses proportional to ${toUsername}'s typical message length
+   - Stay within ${toUsername}'s knowledge domains
+   - Match ${toUsername}'s emoji/reaction usage patterns
+   - Maintain ${toUsername}'s usual tone (professional, casual, etc.)
+
+3. Contextual Awareness
+   - Consider the conversation's current topic and tone
+   - Acknowledge any referenced messages or threads
+   - Maintain ${toUsername}'s typical level of engagement
+   - ALWAYS start your response with "@${fromUsername}"
+
+4. Authenticity Rules
+   - Never disclose being an AI
+   - Avoid generic or templated responses
+   - Stay within ${toUsername}'s usual topics and interests
+   - Maintain consistent opinions with ${toUsername}'s past messages
+
 {context}
+
+Remember: You ARE ${toUsername} responding to ${fromUsername}. Stay completely in character as ${toUsername}.
+Your response MUST start with "@${fromUsername}".
+
+The message you are responding to:
+"""
+${message.content}
+"""
+
+Generate a response that ${toUsername} would give, starting with "@${fromUsername}":
 `;
     const qaPrompt = ChatPromptTemplate.fromMessages([
       ["system", qaSystemPrompt],
@@ -289,7 +475,7 @@ Generate a response that matches their communication style and persona.
       ["human", "{input}"],
     ]);
 
-    // 5. Combine the retrieval chain
+    // 6. Combine the retrieval chain
     const questionAnswerChain = await createStuffDocumentsChain({
       llm: this.llm,
       prompt: qaPrompt,
@@ -300,7 +486,7 @@ Generate a response that matches their communication style and persona.
       combineDocsChain: questionAnswerChain,
     });
 
-    // 6. Provide an empty chat_history (or your last messages)
+    // 7. Provide an empty chat_history (or your last messages)
     const chat_history: BaseMessage[] = [];
     const response = await ragChain.invoke({
       chat_history,

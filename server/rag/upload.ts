@@ -18,6 +18,7 @@ export async function uploadAllMessages() {
     createdAt: m.createdAt,
     userId: m.userId,
     channelId: m.channelId,
+    isAIGenerated: false
   }));
 
   // 3. Fetch direct messages
@@ -31,7 +32,8 @@ export async function uploadAllMessages() {
     content: dm.content,
     createdAt: dm.createdAt,
     fromUserId: dm.senderId,
-    // toUserId: ??? 
+    toUserId: dm.recipientId,
+    isAIGenerated: false
   }));
 
   // 4. Combine them
