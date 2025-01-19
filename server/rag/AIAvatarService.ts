@@ -12,7 +12,7 @@ import { BaseMessage } from "@langchain/core/messages";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
 import { createRetrievalChain } from "langchain/chains/retrieval";
-import { db } from "@db";
+import { db } from "../../db";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 
