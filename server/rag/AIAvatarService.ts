@@ -146,10 +146,24 @@ export class AIAvatarService {
    * Creates a “persona” (AvatarConfig) by analyzing user’s past messages
    */
   async createAvatarPersona(userId: number): Promise<AvatarConfig> {
-    // 1. Retrieve up to 100 docs with metadata.userId == userId
+    // Get user profile data
+    const userProfile = await db
+      .select({
+        title: users.title,
+        bio: users.bio,
+        username: users.username
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    // Get user messages
     const userMessages = await this.vectorStore!.similaritySearch("", 100, {
       userId: { $eq: userId.toString() },
     });
+
+    // Include profile context in message analysis
+    const profileContext = userProfile[0]?.bio ? `User Profile:\nTitle: ${userProfile[0].title}\nBio: ${userProfile[0].bio}\n\n` : "";
 
     // 2. Analyze messages to create persona
     const prompt = `
@@ -279,25 +293,42 @@ export class AIAvatarService {
     channelKey: string
   ): Promise<Document[]> {
     const timeAgo = Math.floor(message.createdAt.getTime() / 1000) - timeWindow;
+
+    // Get thread context if message is a reply
+    let threadContext: Document[] = [];
+    if (message.parentId) {
+      const threadMessages = await this.vectorStore!.similaritySearch("", 10, {
+        parentId: { $eq: message.parentId.toString() }
+      });
+      threadContext = threadMessages;
+    }
     
-    // First, get recent messages within time window
+    // Get recent messages
     const timeBasedMessages = await this.vectorStore!.similaritySearch("", messageLimit, {
       timestamp: { $gt: timeAgo },
       channelId: { $eq: channelKey },
     });
 
-    // Then, get semantically similar messages
+    // Get semantically similar messages
     const similarMessages = await this.vectorStore!.similaritySearch(
-      message.content || "",  // Handle potential undefined
+      message.content || "",
       Math.floor(messageLimit * 0.3),
       {
         channelId: { $eq: channelKey },
       }
     );
 
-    // Combine and deduplicate messages
+    // Combine all contexts with priority
     const seenIds = new Set<string>();
     const combinedMessages: Document[] = [];
+    
+    // Add thread context first
+    for (const msg of threadContext) {
+      if (!seenIds.has(msg.id)) {
+        seenIds.add(msg.id);
+        combinedMessages.push(msg);
+      }
+    }
     
     // Add time-based messages first
     for (const msg of timeBasedMessages) {
