@@ -56,14 +56,15 @@ router.post("/generate", async (req, res) => {
       
       // Generate new audio file using sender's voice if available
       const audioPath = await createAudioFileFromText(text, senderVoiceId || undefined);
+      const audioUrl = `/${audioPath}`;
 
       // Update the DM with the audio path
       await db
         .update(directMessages)
-        .set({ audioData: audioPath })
+        .set({ audioData: audioUrl })
         .where(eq(directMessages.id, messageId));
 
-      return res.json({ audioUrl: audioPath });
+      return res.json({ audioUrl });
     } 
     
     // Handle channel message
@@ -75,14 +76,15 @@ router.post("/generate", async (req, res) => {
     
     // Generate new audio file using sender's voice if available
     const audioPath = await createAudioFileFromText(text, senderVoiceId || undefined);
+    const audioUrl = `/${audioPath}`;
 
     // Update the message with the audio path
     await db
       .update(messages)
-      .set({ audioData: audioPath })
+      .set({ audioData: audioUrl })
       .where(eq(messages.id, messageId));
 
-    res.json({ audioUrl: audioPath });
+    res.json({ audioUrl });
   } catch (error) {
     console.error("Error generating audio:", error);
     res.status(500).json({ error: "Failed to generate audio" });

@@ -214,7 +214,7 @@ export default function ChatPage() {
   return (
     <div className="h-screen flex flex-col">
       <header className="border-b h-14 flex-shrink-0 flex items-center px-4 justify-between bg-background">
-        <h1 className="text-xl font-bold">ChatGenius</h1>
+        <h1 className="text-xl font-bold">Waystar Royco</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <UserPresence />
