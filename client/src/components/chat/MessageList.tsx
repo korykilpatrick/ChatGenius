@@ -176,9 +176,9 @@ export default function MessageList({
         // Explicitly check if isAudioPlayed is false (not just falsy)
         const isUnplayed = msg.isAudioPlayed === false;
         const isRecent = msg.createdAt ? 
-          new Date(msg.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000) : 
+          new Date(msg.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) : 
           false;
-        
+
         console.log('Checking message:', { 
           id: msg.id, 
           content: msg.content,
@@ -191,7 +191,7 @@ export default function MessageList({
 
         return isUnplayed && isRecent;
       }) as Message[]; // Cast to Message[] since we've filtered to only channel messages
-      
+
       console.log('Found unplayed messages:', unplayedMessages.length);
       if (unplayedMessages.length > 0) {
         console.log('Setting message queue:', unplayedMessages);
@@ -292,9 +292,9 @@ export default function MessageList({
       const handleEnded = () => {
         setPlayingMessageId(null);
       };
-      
+
       audioRef.current.addEventListener("ended", handleEnded);
-      
+
       return () => {
         audioRef.current?.removeEventListener("ended", handleEnded);
       };
