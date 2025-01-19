@@ -748,5 +748,53 @@ export function registerRoutes(app: Express): Server {
     );
   });
 
+  // Mark channel message as played
+  app.post("/api/channels/:channelId/messages/:messageId/mark-played", async (req, res) => {
+    try {
+      const { channelId, messageId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      await db.update(messages)
+        .set({ isAudioPlayed: true })
+        .where(and(
+          eq(messages.id, parseInt(messageId)),
+          eq(messages.channelId, parseInt(channelId))
+        ));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking channel message as played:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Mark DM as played
+  app.post("/api/dm/conversations/:conversationId/messages/:messageId/mark-played", async (req, res) => {
+    try {
+      const { conversationId, messageId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      await db.update(directMessages)
+        .set({ isAudioPlayed: true })
+        .where(and(
+          eq(directMessages.id, parseInt(messageId)),
+          eq(directMessages.conversationId, parseInt(conversationId))
+        ));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking DM as played:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   return httpServer;
 }

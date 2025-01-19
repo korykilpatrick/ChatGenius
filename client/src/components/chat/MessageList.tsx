@@ -20,6 +20,8 @@ type MessageListProps = {
   conversationId?: number;
   onThreadSelect: (message: Message) => void;
   onUserAvatarClick?: (userId: number) => void;
+  autoPlayVoices?: boolean;
+  onAutoPlayComplete?: () => void;
 };
 
 type MessageType = Message | DirectMessageWithSender;
@@ -41,6 +43,8 @@ export default function MessageList({
   conversationId,
   onThreadSelect,
   onUserAvatarClick,
+  autoPlayVoices = false,
+  onAutoPlayComplete,
 }: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user } = useUser();
@@ -48,6 +52,7 @@ export default function MessageList({
   const { toast } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
+  const [messageQueue, setMessageQueue] = useState<Message[]>([]);
   const isDM = !!conversationId;
 
   const { data: messages = [] } = useQuery<MessageType[]>({
@@ -76,6 +81,157 @@ export default function MessageList({
     }
   }, [messages, channelId, conversationId, scrollToBottom]);
 
+  const handlePlayAudio = useCallback(async (message: Message) => {
+    if (!audioRef.current) return;
+
+    try {
+      if (playingMessageId === message.id) {
+        audioRef.current.pause();
+        setPlayingMessageId(null);
+        return;
+      }
+
+      // If we don't have audio data, generate it first
+      let audioData = message.audioData || null;
+      if (!audioData) {
+        console.log('Generating audio for message:', message.id);
+        const response = await fetch("/api/voice/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            text: message.content, 
+            messageId: message.id,
+            userId: message.user.id 
+          }),
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to generate audio");
+        }
+
+        const { audioUrl } = await response.json();
+        if (!audioUrl) {
+          throw new Error("No audio URL returned");
+        }
+        console.log('Generated audio URL:', audioUrl);
+        audioData = audioUrl;
+      }
+
+      if (!audioData) {
+        throw new Error("No audio data available");
+      }
+
+      console.log('Playing audio for message:', message.id);
+      setPlayingMessageId(message.id);
+      audioRef.current.src = audioData;
+      await audioRef.current.play();
+
+      // Mark message as played
+      if (channelId) {
+        await fetch(`/api/channels/${channelId}/messages/${message.id}/mark-played`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      } else if (conversationId) {
+        await fetch(`/api/dm/conversations/${conversationId}/messages/${message.id}/mark-played`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      }
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setPlayingMessageId(null);
+      toast({
+        title: "Error",
+        description: "Failed to play audio message",
+        variant: "destructive",
+      });
+    }
+  }, [playingMessageId, channelId, conversationId, toast]);
+
+  // Handle auto-play queue
+  useEffect(() => {
+    console.log('Auto-play effect triggered:', { 
+      autoPlayVoices, 
+      hasMessages: messages.length > 0,
+      messageCount: messages.length 
+    });
+
+    if (autoPlayVoices && messages.length > 0) {
+      console.log('Setting up auto-play queue');
+      const unplayedMessages = messages.filter(msg => {
+        // Only handle channel messages (not DMs)
+        if (!('channelId' in msg)) {
+          console.log('Skipping DM message:', msg.id);
+          return false;
+        }
+
+        // Only handle messages that have the isAudioPlayed field
+        if (!('isAudioPlayed' in msg)) {
+          console.log('Message missing isAudioPlayed field:', msg.id);
+          return false;
+        }
+
+        // Explicitly check if isAudioPlayed is false (not just falsy)
+        const isUnplayed = msg.isAudioPlayed === false;
+        const isRecent = msg.createdAt ? 
+          new Date(msg.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000) : 
+          false;
+        
+        console.log('Checking message:', { 
+          id: msg.id, 
+          content: msg.content,
+          isAudioPlayed: msg.isAudioPlayed,
+          createdAt: msg.createdAt,
+          isUnplayed: isUnplayed,
+          isRecent: isRecent,
+          willInclude: isUnplayed && isRecent
+        });
+
+        return isUnplayed && isRecent;
+      }) as Message[]; // Cast to Message[] since we've filtered to only channel messages
+      
+      console.log('Found unplayed messages:', unplayedMessages.length);
+      if (unplayedMessages.length > 0) {
+        console.log('Setting message queue:', unplayedMessages);
+        setMessageQueue(unplayedMessages);
+      } else {
+        console.log('No unplayed messages found');
+        onAutoPlayComplete?.();
+      }
+    } else {
+      console.log('Clearing message queue because:', { autoPlayVoices, messageCount: messages.length });
+      setMessageQueue([]);
+    }
+  }, [autoPlayVoices, messages, onAutoPlayComplete]);
+
+  // Play next message in queue
+  useEffect(() => {
+    console.log('Queue effect triggered:', { 
+      queueLength: messageQueue.length, 
+      playingMessageId 
+    });
+
+    const playNextMessage = async () => {
+      if (messageQueue.length > 0 && !playingMessageId) {
+        console.log('Playing next message from queue, remaining:', messageQueue.length);
+        const nextMessage = messageQueue[0];
+        console.log('Next message to play:', { 
+          id: nextMessage.id, 
+          content: nextMessage.content 
+        });
+        await handlePlayAudio(nextMessage);
+        setMessageQueue(prev => prev.slice(1));
+      } else if (messageQueue.length === 0 && !playingMessageId && autoPlayVoices) {
+        console.log('Auto-play queue complete');
+        onAutoPlayComplete?.();
+      }
+    };
+
+    playNextMessage();
+  }, [messageQueue, playingMessageId, handlePlayAudio, onAutoPlayComplete, autoPlayVoices]);
+
   const handleReaction = (messageId: number, reaction: string) => {
     if (!user) return;
     sendMessage("message_reaction", {
@@ -86,9 +242,10 @@ export default function MessageList({
     });
   };
 
-  const renderFileAttachment = (file: FileAttachment) => {
-    const filePath = file.url.startsWith("/") ? file.url : `/uploads/${file.url}`;
+  const renderFileAttachment = (fileUrl: string) => {
+    const filePath = fileUrl.startsWith("/") ? fileUrl : `/uploads/${fileUrl}`;
     const isImage = filePath.match(/\.(jpg|jpeg|png|gif)$/i);
+    const fileName = fileUrl.split("/").pop() || fileUrl;
 
     if (isImage) {
       return (
@@ -119,7 +276,7 @@ export default function MessageList({
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <Download className="h-4 w-4" />
-          {file.name}
+          {fileName}
         </a>
       </div>
     );
@@ -128,57 +285,6 @@ export default function MessageList({
   const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
-
-  const handlePlayAudio = async (message: MessageType) => {
-    try {
-      if (playingMessageId === message.id) {
-        // If this message is currently playing, pause it
-        if (audioRef.current) {
-          audioRef.current.pause();
-          setPlayingMessageId(null);
-        }
-        return;
-      }
-
-      // If we already have audio data, play it directly
-      if (message.audioData) {
-        if (audioRef.current) {
-          audioRef.current.src = message.audioData;
-          await audioRef.current.play();
-          setPlayingMessageId(message.id);
-          return;
-        }
-      }
-
-      // Otherwise, generate new audio
-      const response = await fetch("/api/voice/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: message.content, messageId: message.id }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate audio");
-      }
-
-      const { audioUrl } = await response.json();
-      
-      // Play the audio
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        await audioRef.current.play();
-        setPlayingMessageId(message.id);
-      }
-    } catch (error) {
-      console.error("Error playing audio:", error);
-      toast({
-        title: "Error",
-        description: "Failed to play audio message",
-        variant: "destructive",
-      });
-      setPlayingMessageId(null);
-    }
-  };
 
   // Handle audio ending
   useEffect(() => {
@@ -239,7 +345,7 @@ export default function MessageList({
                         <p className="text-sm break-words">{message.content}</p>
                         {message.files && message.files.length > 0 && (
                           <div className="space-y-2">
-                            {(message.files as FileAttachment[]).map((file, index) => (
+                            {(message.files as string[]).map((file: string, index: number) => (
                               <div key={index}>{renderFileAttachment(file)}</div>
                             ))}
                           </div>
@@ -269,7 +375,7 @@ export default function MessageList({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => handlePlayAudio(message)}
+                        onClick={() => handlePlayAudio(message as Message)}
                       >
                         {isPlaying ? (
                           <Pause className="h-4 w-4" />

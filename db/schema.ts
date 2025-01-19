@@ -37,6 +37,7 @@ export const messages = pgTable("messages", {
   isAIGenerated: boolean("is_ai_generated").default(false).notNull(),
   aiRespondingToUserId: integer("ai_responding_to_user_id").references(() => users.id),
   audioData: text("audio_data"),
+  isAudioPlayed: boolean("is_audio_played").default(false),
 });
 
 export const channelMembers = pgTable("channel_members", {
@@ -79,6 +80,7 @@ export const directMessages = pgTable("direct_messages", {
   isAIGenerated: boolean("is_ai_generated").default(false).notNull(),
   aiRespondingToUserId: integer("ai_responding_to_user_id").references(() => users.id),
   audioData: text("audio_data"),
+  isAudioPlayed: boolean("is_audio_played").default(false),
 });
 
 // Relations

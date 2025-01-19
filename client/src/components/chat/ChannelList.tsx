@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Plus, Hash, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Hash, ChevronRight, ChevronDown, Volume2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,12 +35,14 @@ type ChannelListProps = {
   // A set of channel IDs that have unread messages
   unreadChannels?: Set<number>;
   onSelectChannel: (channelId: number) => void;
+  onVoiceClick?: (channelId: number) => void;
 };
 
 export default function ChannelList({
   selectedChannel,
   unreadChannels = new Set(),
   onSelectChannel,
+  onVoiceClick,
 }: ChannelListProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -154,18 +156,32 @@ export default function ChannelList({
             const isUnread = unreadChannels.has(channel.id) && !isSelected;
 
             return (
-              <Button
-                key={channel.id}
-                variant={isSelected ? "secondary" : "ghost"}
-                onClick={() => onSelectChannel(channel.id)}
-                className={`
-                  w-full justify-start px-2 py-1.5 h-auto text-sm
-                  ${isUnread ? "font-bold text-foreground" : "font-medium text-muted-foreground"}
-                `}
-              >
-                <Hash className="h-4 w-4 mr-2" />
-                {channel.name}
-              </Button>
+              <div key={channel.id} className="group relative">
+                <Button
+                  variant={isSelected ? "secondary" : "ghost"}
+                  onClick={() => onSelectChannel(channel.id)}
+                  className={`
+                    w-full justify-start px-2 py-1.5 h-auto text-sm
+                    ${isUnread ? "font-bold text-foreground" : "font-medium text-muted-foreground"}
+                  `}
+                >
+                  <Hash className="h-4 w-4 mr-2" />
+                  {channel.name}
+                </Button>
+                {onVoiceClick && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onVoiceClick(channel.id);
+                    }}
+                  >
+                    <Volume2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             );
           })}
         </CollapsibleContent>

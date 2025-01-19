@@ -26,6 +26,7 @@ import { X } from "lucide-react";
 export default function ChatPage() {
   const [selectedChannel, setSelectedChannel] = useState<number | null>(1);
   const [selectedThread, setSelectedThread] = useState<Message | null>(null);
+  const [isAutoPlayingVoices, setIsAutoPlayingVoices] = useState(false);
   const { user } = useUser();
   const { isConnected, subscribe } = useWebSocket();
   const [location] = useLocation();
@@ -47,17 +48,39 @@ export default function ChatPage() {
       copy.delete(channelId);
       return copy;
     });
+    setIsAutoPlayingVoices(false);
+  };
+
+  const handleVoiceClick = async (channelId: number) => {
+    // First set the channel and clear unread state
+    setSelectedChannel(channelId);
+    setSelectedThread(null);
+    setUnreadChannels((prev) => {
+      const copy = new Set(prev);
+      copy.delete(channelId);
+      return copy;
+    });
+
+    // Wait for fresh messages to load
+    await queryClient.invalidateQueries({
+      queryKey: [`/api/channels/${channelId}/messages`],
+      exact: true
+    });
+    await queryClient.prefetchQuery({
+      queryKey: [`/api/channels/${channelId}/messages`],
+    });
+
+    // Then enable auto-play
+    setIsAutoPlayingVoices(true);
   };
 
   useEffect(() => {
     if (selectedUserId) {
-      setUnreadDMConversations((prev) => {
-        const copy = new Set(prev);
-        copy.delete(selectedUserId);
-        return copy;
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/dm/conversations/${selectedUserId}/messages`] 
       });
     }
-  }, [selectedUserId]);
+  }, [selectedUserId, queryClient]);
 
   useEffect(() => {
     const unsubscribe = subscribe((wsMessage) => {
@@ -78,7 +101,10 @@ export default function ChatPage() {
               copy.add(channelId);
               return copy;
             });
-            queryClient.invalidateQueries([`/api/channels/${channelId}/messages`]);
+            queryClient.invalidateQueries({
+              queryKey: [`/api/channels/${channelId}/messages`],
+              exact: true
+            });
             return;
           }
 
@@ -95,7 +121,7 @@ export default function ChatPage() {
               }
             );
           } else {
-            // If parentId exists, increment that parent’s replies
+            // If parentId exists, increment that parent's replies
             queryClient.setQueryData(
               [`/api/channels/${channelId}/messages`],
               (oldData: Message[] = []) =>
@@ -120,9 +146,10 @@ export default function ChatPage() {
               copy.add(conversationId);
               return copy;
             });
-            queryClient.invalidateQueries([
-              `/api/dm/conversations/${conversationId}/messages`,
-            ]);
+            queryClient.invalidateQueries({
+              queryKey: [`/api/dm/conversations/${conversationId}/messages`],
+              exact: true
+            });
             return;
           }
 
@@ -238,7 +265,7 @@ export default function ChatPage() {
                   selectedChannel={selectedUserId ? null : selectedChannel}
                   unreadChannels={unreadChannels}
                   onSelectChannel={handleSelectChannel}
-                  channels={allChannels}
+                  onVoiceClick={handleVoiceClick}
                 />
                 <Separator className="mx-2" />
                 <DirectMessagesList unreadDMConversations={unreadDMConversations} />
@@ -257,6 +284,8 @@ export default function ChatPage() {
                   channelId={selectedChannel}
                   onThreadSelect={setSelectedThread}
                   onUserAvatarClick={handleUserAvatarClick}
+                  autoPlayVoices={isAutoPlayingVoices}
+                  onAutoPlayComplete={() => setIsAutoPlayingVoices(false)}
                 />
                 <MessageInput channelId={selectedChannel} />
               </>
@@ -267,6 +296,8 @@ export default function ChatPage() {
                   conversationId={selectedUserId}
                   onThreadSelect={setSelectedThread}
                   onUserAvatarClick={handleUserAvatarClick}
+                  autoPlayVoices={isAutoPlayingVoices}
+                  onAutoPlayComplete={() => setIsAutoPlayingVoices(false)}
                 />
                 <MessageInput conversationId={selectedUserId} />
               </>
