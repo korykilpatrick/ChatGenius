@@ -150,87 +150,93 @@ export default function MessageList({
     }
   }, [playingMessageId, channelId, conversationId, toast]);
 
-  // Handle auto-play queue
+  // Set up initial queue when autoPlayVoices changes
   useEffect(() => {
-    console.log('Auto-play effect triggered:', { 
-      autoPlayVoices, 
-      hasMessages: messages.length > 0,
-      messageCount: messages.length 
-    });
-
+    console.log('[Queue Setup] autoPlayVoices:', autoPlayVoices, 'messages:', messages.length);
+    
     if (autoPlayVoices && messages.length > 0) {
-      console.log('Setting up auto-play queue');
-      const unplayedMessages = messages.filter(msg => {
-        // Only handle channel messages (not DMs)
-        if (!('channelId' in msg)) {
-          console.log('Skipping DM message:', msg.id);
-          return false;
-        }
+      const now = new Date().getTime();
+      const fortyEightHoursAgo = now - (48 * 60 * 60 * 1000);
 
-        // Only handle messages that have the isAudioPlayed field
-        if (!('isAudioPlayed' in msg)) {
-          console.log('Message missing isAudioPlayed field:', msg.id);
-          return false;
-        }
+      const unplayedMessages = messages
+        .filter((msg: MessageType) => {
+          if (!('channelId' in msg) || !('isAudioPlayed' in msg)) return false;
+          const messageTime = new Date(msg.createdAt).getTime();
+          return msg.isAudioPlayed === false && messageTime > fortyEightHoursAgo;
+        })
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) as Message[];
 
-        // Explicitly check if isAudioPlayed is false (not just falsy)
-        const isUnplayed = msg.isAudioPlayed === false;
-        const isRecent = msg.createdAt ? 
-          new Date(msg.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) : 
-          false;
-
-        console.log('Checking message:', { 
-          id: msg.id, 
-          content: msg.content,
-          isAudioPlayed: msg.isAudioPlayed,
-          createdAt: msg.createdAt,
-          isUnplayed: isUnplayed,
-          isRecent: isRecent,
-          willInclude: isUnplayed && isRecent
-        });
-
-        return isUnplayed && isRecent;
-      }) as Message[]; // Cast to Message[] since we've filtered to only channel messages
-
-      console.log('Found unplayed messages:', unplayedMessages.length);
+      console.log('[Queue Setup] Found unplayed messages:', unplayedMessages.length);
+      
       if (unplayedMessages.length > 0) {
-        console.log('Setting message queue:', unplayedMessages);
+        console.log('[Queue Setup] Setting queue with messages:', 
+          unplayedMessages.map(m => ({ id: m.id, content: m.content }))
+        );
         setMessageQueue(unplayedMessages);
       } else {
-        console.log('No unplayed messages found');
+        console.log('[Queue Setup] No messages to play, completing');
         onAutoPlayComplete?.();
       }
     } else {
-      console.log('Clearing message queue because:', { autoPlayVoices, messageCount: messages.length });
+      console.log('[Queue Setup] Clearing queue');
       setMessageQueue([]);
     }
   }, [autoPlayVoices, messages, onAutoPlayComplete]);
 
-  // Play next message in queue
+  // Handle audio playback
   useEffect(() => {
-    console.log('Queue effect triggered:', { 
-      queueLength: messageQueue.length, 
-      playingMessageId 
+    if (!audioRef.current) return;
+    
+    console.log('[Playback] Current state:', {
+      queueLength: messageQueue.length,
+      playingId: playingMessageId,
+      autoPlayActive: autoPlayVoices
     });
 
-    const playNextMessage = async () => {
-      if (messageQueue.length > 0 && !playingMessageId) {
-        console.log('Playing next message from queue, remaining:', messageQueue.length);
-        const nextMessage = messageQueue[0];
-        console.log('Next message to play:', { 
-          id: nextMessage.id, 
-          content: nextMessage.content 
-        });
-        await handlePlayAudio(nextMessage);
+    const handleEnded = () => {
+      console.log('[Playback] Audio ended, current queue:', messageQueue.length);
+      setPlayingMessageId(null);
+      
+      // If we have more messages, update queue to trigger next play
+      if (messageQueue.length > 1) {
+        console.log('[Playback] Moving to next message, remaining:', messageQueue.length - 1);
         setMessageQueue(prev => prev.slice(1));
-      } else if (messageQueue.length === 0 && !playingMessageId && autoPlayVoices) {
-        console.log('Auto-play queue complete');
+      } else {
+        console.log('[Playback] Queue finished');
+        setMessageQueue([]);
         onAutoPlayComplete?.();
       }
     };
 
-    playNextMessage();
-  }, [messageQueue, playingMessageId, handlePlayAudio, onAutoPlayComplete, autoPlayVoices]);
+    // Make sure we remove old listener before adding new one
+    audioRef.current.removeEventListener("ended", handleEnded);
+    audioRef.current.addEventListener("ended", handleEnded);
+
+    const startNextMessage = async () => {
+      // Only start if we have messages and nothing is currently playing
+      if (messageQueue.length > 0 && !playingMessageId) {
+        const nextMessage = messageQueue[0];
+        console.log('[Playback] Starting message:', nextMessage.content);
+        
+        try {
+          await handlePlayAudio(nextMessage);
+        } catch (error) {
+          console.error('[Playback] Failed to play message:', error);
+          // If play fails, skip to next message
+          handleEnded();
+        }
+      }
+    };
+
+    startNextMessage();
+
+    return () => {
+      if (audioRef.current) {
+        console.log('[Playback] Cleaning up audio listeners');
+        audioRef.current.removeEventListener("ended", handleEnded);
+      }
+    };
+  }, [messageQueue, playingMessageId, handlePlayAudio, autoPlayVoices, onAutoPlayComplete]);
 
   const handleReaction = (messageId: number, reaction: string) => {
     if (!user) return;
@@ -285,21 +291,6 @@ export default function MessageList({
   const sortedMessages = [...messages].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
-
-  // Handle audio ending
-  useEffect(() => {
-    if (audioRef.current) {
-      const handleEnded = () => {
-        setPlayingMessageId(null);
-      };
-
-      audioRef.current.addEventListener("ended", handleEnded);
-
-      return () => {
-        audioRef.current?.removeEventListener("ended", handleEnded);
-      };
-    }
-  }, []);
 
   return (
     <>
