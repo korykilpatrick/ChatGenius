@@ -300,6 +300,7 @@ export class AIAvatarService {
       const threadMessages = await this.vectorStore!.similaritySearch("", 10, {
         parentId: { $eq: message.parentId.toString() }
       });
+      console.log("Thread context messages:", threadMessages);
       threadContext = threadMessages;
     }
     
@@ -308,6 +309,7 @@ export class AIAvatarService {
       timestamp: { $gt: timeAgo },
       channelId: { $eq: channelKey },
     });
+    console.log("Time-based messages:", timeBasedMessages);
 
     // Get semantically similar messages
     const similarMessages = await this.vectorStore!.similaritySearch(
@@ -317,6 +319,7 @@ export class AIAvatarService {
         channelId: { $eq: channelKey },
       }
     );
+    console.log("Semantically similar messages:", similarMessages);
 
     // Combine all contexts with priority
     const seenIds = new Set<string>();
@@ -519,10 +522,12 @@ Generate a response that ${toUsername} would give, starting with "@${fromUsernam
 
     // 7. Provide an empty chat_history (or your last messages)
     const chat_history: BaseMessage[] = [];
+    console.log("Invoking RAG chain with context:");
     const response = await ragChain.invoke({
       chat_history,
       input: message.content,
     });
+    console.log("RAG chain response:", response);
     return response.answer;
   }
 
