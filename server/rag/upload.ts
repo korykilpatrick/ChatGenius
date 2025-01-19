@@ -41,31 +41,42 @@ export async function uploadAllMessages() {
   // 3. Fetch direct messages with usernames
   console.log("Fetching direct messages...");
   try {
-    // First get all direct messages
-    const rawDMs = await db
-      .select()
-      .from(directMessages);
+    const dbDMs = await db
+      .select({
+        id: directMessages.id,
+        content: directMessages.content,
+        createdAt: directMessages.createdAt,
+        senderId: directMessages.senderId,
+        recipientId: directMessages.recipientId,
+        username: users.username,
+      })
+      .from(directMessages)
+      .leftJoin(users, eq(directMessages.senderId, users.id));
 
-    console.log(`Found ${rawDMs.length} raw direct messages`);
+    console.log(`Found ${dbDMs.length} direct messages`);
 
-    // Then get all users
-    const allUsers = await db
-      .select()
+    // Get recipient usernames in a separate query
+    console.log("Fetching user information...");
+    const recipientUsernames = await db
+      .select({
+        id: users.id,
+        username: users.username,
+      })
       .from(users);
 
-    console.log(`Found ${allUsers.length} users`);
+    console.log(`Found ${recipientUsernames.length} users`);
 
     // Create a map of user IDs to usernames
-    const usernameMap = new Map(allUsers.map(u => [u.id, u.username || `User ${u.id}`]));
+    const usernameMap = new Map(recipientUsernames.map(u => [u.id, u.username || `User ${u.id}`]));
 
     // Map into our "Message" interface with both usernames
-    const directMsgs: Message[] = rawDMs.map((dm) => ({
+    const directMsgs: Message[] = dbDMs.map((dm) => ({
       id: dm.id,
       content: dm.content || '',
       createdAt: dm.createdAt || new Date(),
       fromUserId: dm.senderId,
       toUserId: dm.recipientId,
-      fromUsername: usernameMap.get(dm.senderId) || `User ${dm.senderId}`,
+      fromUsername: dm.username || `User ${dm.senderId}`,
       toUsername: usernameMap.get(dm.recipientId) || `User ${dm.recipientId}`,
       isAIGenerated: false
     }));
