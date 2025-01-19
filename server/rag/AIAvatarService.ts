@@ -87,8 +87,8 @@ export class AIAvatarService {
     const isChannelMsg = message.channelId !== undefined;
     const docId = isChannelMsg ? `msg_${message.id}` : `dm_${message.id}`;
     const pageContent = isChannelMsg
-      ? `[User ${message.userId}] ${message.content}`
-      : `[User ${message.fromUserId}] ${message.content}`;
+      ? `[${message.fromUsername}] ${message.content}`
+      : `[${message.fromUsername}] ${message.content}`;
 
     const doc = new Document({
       id: docId,
@@ -97,6 +97,7 @@ export class AIAvatarService {
         userId: isChannelMsg
           ? message.userId?.toString()
           : message.fromUserId?.toString(),
+        username: message.fromUsername,
         timestamp: Math.floor(message.createdAt.getTime() / 1000),
         channelId: isChannelMsg
           ? message.channelId?.toString()
@@ -118,8 +119,8 @@ export class AIAvatarService {
       const isChannelMsg = msg.channelId !== undefined;
       const docId = isChannelMsg ? `msg_${msg.id}` : `dm_${msg.id}`;
       const pageContent = isChannelMsg
-        ? `[User ${msg.userId}] ${msg.content}`
-        : `[User ${msg.fromUserId}] ${msg.content}`;
+        ? `[${msg.fromUsername}] ${msg.content}`
+        : `[${msg.fromUsername}] ${msg.content}`;
 
       docs.push(
         new Document({
@@ -129,6 +130,7 @@ export class AIAvatarService {
             userId: isChannelMsg
               ? msg.userId?.toString()
               : msg.fromUserId?.toString(),
+            username: msg.fromUsername,
             timestamp: Math.floor(msg.createdAt.getTime() / 1000),
             channelId: isChannelMsg
               ? msg.channelId?.toString()
@@ -143,7 +145,7 @@ export class AIAvatarService {
   }
 
   /**
-   * Creates a “persona” (AvatarConfig) by analyzing user’s past messages
+   * Creates a "persona" (AvatarConfig) by analyzing user's past messages
    */
   async createAvatarPersona(userId: number): Promise<AvatarConfig> {
     // Get user profile data

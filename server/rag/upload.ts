@@ -1,38 +1,70 @@
 // server/rag/upload.ts
 import { db } from '@db';
 import { drizzle } from "drizzle-orm/node-postgres";
-import { messages, directMessages } from "../../db/schema"; // Adjust path
+import { messages, directMessages, users } from "../../db/schema"; // Added users import
 import { eq } from "drizzle-orm";
 
 import { AIAvatarService, Message } from "./AIAvatarService";
 
 export async function uploadAllMessages() {
 
-  // 2. Fetch channel messages
-  // e.g. select * from messages
-  const dbChannelMessages = await db.select().from(messages);
-  // Map into our “Message” interface
+  // 2. Fetch channel messages with usernames
+  const dbChannelMessages = await db
+    .select({
+      id: messages.id,
+      content: messages.content,
+      createdAt: messages.createdAt,
+      userId: messages.userId,
+      channelId: messages.channelId,
+      fromUsername: users.username,
+    })
+    .from(messages)
+    .leftJoin(users, eq(messages.userId, users.id));
+
+  // Map into our "Message" interface
   const channelMsgs: Message[] = dbChannelMessages.map((m) => ({
     id: m.id,
     content: m.content,
     createdAt: m.createdAt,
     userId: m.userId,
     channelId: m.channelId,
+    fromUsername: m.fromUsername || `User ${m.userId}`, // Provide default if null
     isAIGenerated: false
   }));
 
-  // 3. Fetch direct messages
-  // e.g. select * from direct_messages
-  const dbDMs = await db.select().from(directMessages);
-  // Map into our “Message” interface
-  // You might want to store toUserId if you track it in your direct_messages
-  // table. If not, skip it or set it to undefined.
+  // 3. Fetch direct messages with usernames
+  const dbDMs = await db
+    .select({
+      id: directMessages.id,
+      content: directMessages.content,
+      createdAt: directMessages.createdAt,
+      senderId: directMessages.senderId,
+      recipientId: directMessages.recipientId,
+      fromUsername: users.username,
+    })
+    .from(directMessages)
+    .leftJoin(users, eq(directMessages.senderId, users.id));
+
+  // Get recipient usernames in a separate query
+  const recipientUsernames = await db
+    .select({
+      id: users.id,
+      username: users.username,
+    })
+    .from(users);
+
+  // Create a map of user IDs to usernames
+  const usernameMap = new Map(recipientUsernames.map(u => [u.id, u.username]));
+
+  // Map into our "Message" interface with both usernames
   const directMsgs: Message[] = dbDMs.map((dm) => ({
     id: dm.id,
     content: dm.content,
     createdAt: dm.createdAt,
     fromUserId: dm.senderId,
     toUserId: dm.recipientId,
+    fromUsername: dm.fromUsername || `User ${dm.senderId}`, // Provide default if null
+    toUsername: usernameMap.get(dm.recipientId) || `User ${dm.recipientId}`, // Provide default if undefined
     isAIGenerated: false
   }));
 
