@@ -12,6 +12,9 @@ import { BaseMessage } from "@langchain/core/messages";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createHistoryAwareRetriever } from "langchain/chains/history_aware_retriever";
 import { createRetrievalChain } from "langchain/chains/retrieval";
+import { db } from "@db";
+import { users } from "@db/schema";
+import { eq } from "drizzle-orm";
 
 //
 // 1) Domain Types
@@ -26,6 +29,7 @@ export interface Message {
   channelId?: number; // messages table
   fromUsername?: string; // Added for AI context
   toUsername?: string; // Added for AI context
+  parentId?: number; // Added for thread support
 }
 
 export interface AvatarConfig {
@@ -329,24 +333,27 @@ export class AIAvatarService {
     
     // Add thread context first
     for (const msg of threadContext) {
-      if (!seenIds.has(msg.id)) {
-        seenIds.add(msg.id);
+      const id = msg.id;
+      if (typeof id === 'string' && !seenIds.has(id)) {
+        seenIds.add(id);
         combinedMessages.push(msg);
       }
     }
     
     // Add time-based messages first
     for (const msg of timeBasedMessages) {
-      if (!seenIds.has(msg.id)) {
-        seenIds.add(msg.id);
+      const id = msg.id;
+      if (typeof id === 'string' && !seenIds.has(id)) {
+        seenIds.add(id);
         combinedMessages.push(msg);
       }
     }
     
     // Add similar messages if not already included
     for (const msg of similarMessages) {
-      if (!seenIds.has(msg.id)) {
-        seenIds.add(msg.id);
+      const id = msg.id;
+      if (typeof id === 'string' && !seenIds.has(id)) {
+        seenIds.add(id);
         combinedMessages.push(msg);
       }
     }

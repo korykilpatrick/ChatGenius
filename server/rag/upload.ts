@@ -7,8 +7,10 @@ import { eq } from "drizzle-orm";
 import { AIAvatarService, Message } from "./AIAvatarService";
 
 export async function uploadAllMessages() {
+  console.log("Starting message upload process...");
 
   // 2. Fetch channel messages with usernames
+  console.log("Fetching channel messages...");
   const dbChannelMessages = await db
     .select({
       id: messages.id,
@@ -16,66 +18,74 @@ export async function uploadAllMessages() {
       createdAt: messages.createdAt,
       userId: messages.userId,
       channelId: messages.channelId,
-      fromUsername: users.username,
+      username: users.username,
     })
     .from(messages)
     .leftJoin(users, eq(messages.userId, users.id));
 
+  console.log(`Found ${dbChannelMessages.length} channel messages`);
+
   // Map into our "Message" interface
   const channelMsgs: Message[] = dbChannelMessages.map((m) => ({
     id: m.id,
-    content: m.content,
-    createdAt: m.createdAt,
+    content: m.content || '',
+    createdAt: m.createdAt || new Date(),
     userId: m.userId,
     channelId: m.channelId,
-    fromUsername: m.fromUsername || `User ${m.userId}`, // Provide default if null
+    fromUsername: m.username || `User ${m.userId}`,
     isAIGenerated: false
   }));
+
+  let allMessages = channelMsgs;
 
   // 3. Fetch direct messages with usernames
-  const dbDMs = await db
-    .select({
-      id: directMessages.id,
-      content: directMessages.content,
-      createdAt: directMessages.createdAt,
-      senderId: directMessages.senderId,
-      recipientId: directMessages.recipientId,
-      fromUsername: users.username,
-    })
-    .from(directMessages)
-    .leftJoin(users, eq(directMessages.senderId, users.id));
+  console.log("Fetching direct messages...");
+  try {
+    // First get all direct messages
+    const rawDMs = await db
+      .select()
+      .from(directMessages);
 
-  // Get recipient usernames in a separate query
-  const recipientUsernames = await db
-    .select({
-      id: users.id,
-      username: users.username,
-    })
-    .from(users);
+    console.log(`Found ${rawDMs.length} raw direct messages`);
 
-  // Create a map of user IDs to usernames
-  const usernameMap = new Map(recipientUsernames.map(u => [u.id, u.username]));
+    // Then get all users
+    const allUsers = await db
+      .select()
+      .from(users);
 
-  // Map into our "Message" interface with both usernames
-  const directMsgs: Message[] = dbDMs.map((dm) => ({
-    id: dm.id,
-    content: dm.content,
-    createdAt: dm.createdAt,
-    fromUserId: dm.senderId,
-    toUserId: dm.recipientId,
-    fromUsername: dm.fromUsername || `User ${dm.senderId}`, // Provide default if null
-    toUsername: usernameMap.get(dm.recipientId) || `User ${dm.recipientId}`, // Provide default if undefined
-    isAIGenerated: false
-  }));
+    console.log(`Found ${allUsers.length} users`);
 
-  // 4. Combine them
-  const allMessages = [...channelMsgs, ...directMsgs];
+    // Create a map of user IDs to usernames
+    const usernameMap = new Map(allUsers.map(u => [u.id, u.username || `User ${u.id}`]));
+
+    // Map into our "Message" interface with both usernames
+    const directMsgs: Message[] = rawDMs.map((dm) => ({
+      id: dm.id,
+      content: dm.content || '',
+      createdAt: dm.createdAt || new Date(),
+      fromUserId: dm.senderId,
+      toUserId: dm.recipientId,
+      fromUsername: usernameMap.get(dm.senderId) || `User ${dm.senderId}`,
+      toUsername: usernameMap.get(dm.recipientId) || `User ${dm.recipientId}`,
+      isAIGenerated: false
+    }));
+
+    // Add direct messages to all messages
+    allMessages = [...allMessages, ...directMsgs];
+  } catch (error) {
+    console.error("Error fetching direct messages:", error);
+    // Continue with just channel messages
+  }
+
+  console.log(`Total messages to index: ${allMessages.length}`);
 
   // 5. Initialize your AIAvatarService so it can talk to Pinecone
+  console.log("Initializing AI Avatar Service...");
   const aiService = new AIAvatarService();
   await aiService.initialize(); // sets up vectorStore
 
   // 6. Index all messages in Pinecone
+  console.log("Starting to index messages in Pinecone...");
   await aiService.indexUserMessages(allMessages);
 
   console.log("All messages have been indexed into Pinecone");
