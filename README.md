@@ -1,6 +1,8 @@
-# ChatGenius - Team Communication Platform
+# ChatGenius - AI-Enhanced Chat Learning Project
 
-ChatGenius is an advanced real-time team communication platform designed for secure and intelligent collaboration with comprehensive messaging capabilities.
+ChatGenius is a 2-week sprint project focused on exploring AI-assisted development using Replit and Cursor agents. The goal was to build a Slack-like team communication platform while learning how to effectively integrate AI capabilities and modern development tools.
+
+This project serves as a practical workshop for understanding how to rapidly prototype a full-stack application with AI assistance. While not intended for production use, it implements a comprehensive set of features to demonstrate the capabilities of AI-enhanced development workflows.
 
 ## 🌟 Current Features
 
@@ -13,6 +15,21 @@ ChatGenius is an advanced real-time team communication platform designed for sec
 - File sharing with secure upload system
   - Support for images, PDFs, docs, and text files
   - 5MB file size limit with type verification
+- Message reactions with emojis
+  - Real-time reaction updates
+  - Support for both channels and DMs
+
+### AI & Voice Features
+- AI-powered message responses
+  - Context-aware user personas
+  - Dynamic conversation context windows
+  - Thread-aware message processing
+  - Personalized response styles
+- Voice capabilities
+  - Text-to-speech synthesis
+  - Voice cloning from audio samples
+  - Custom voice configuration
+  - Voice messages in both channels and DMs
 
 ### User Management
 - User authentication system
@@ -20,12 +37,14 @@ ChatGenius is an advanced real-time team communication platform designed for sec
 - User search functionality
 - Online presence tracking
 - User status updates
+- AI response preferences configuration
 
 ### Channels
 - Public and private channels
 - Channel membership management
 - Real-time channel updates
 - Message history
+- Message reactions
 
 ### Direct Messages
 - Private conversations
@@ -33,6 +52,7 @@ ChatGenius is an advanced real-time team communication platform designed for sec
 - Message threading in DMs
 - File sharing in DMs
 - Voice messages in DMs
+- Message reactions in DMs
 
 ### Security Features
 - Secure session management
@@ -57,7 +77,14 @@ ChatGenius is an advanced real-time team communication platform designed for sec
 - Session management with express-session
 - Multer for file upload handling
 
-## 🛠 Setup and Installation
+### AI & Voice Technology
+- RAG (Retrieval Augmented Generation) system
+- Pinecone for vector similarity search
+- ElevenLabs integration for voice synthesis
+- OpenAI for intelligent features
+- Custom context-aware response generation
+
+## 🛠 Development Setup
 
 1. Install dependencies:
 ```bash
@@ -107,6 +134,7 @@ npm run dev
 
 ## 🔒 Security Implementation
 
+This project implements basic security practices for learning purposes:
 - Secure session management
 - Input validation
 - Protected file uploads
@@ -120,6 +148,8 @@ MIT License
 
 ## 🤝 Contributing
 
+As this is a learning project, feel free to experiment and build upon it:
+
 1. Fork the repository
 2. Create your feature branch
 3. Commit your changes
@@ -128,4 +158,4 @@ MIT License
 
 ---
 
-For more information or support, please open an issue in the repository.
+This project was created as a learning exercise to explore AI-assisted development. While it implements many features, it's designed for educational purposes rather than production use. Feel free to use it as a starting point for your own experiments with AI-enhanced development!
