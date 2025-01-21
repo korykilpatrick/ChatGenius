@@ -1,4 +1,3 @@
-// routes.ts
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
@@ -76,6 +75,27 @@ const upload = multer({
 });
 
 export function registerRoutes(app: Express): Server {
+  // Health check endpoint - publicly accessible
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Check database connection
+  app.get("/api/health/db", async (_req, res) => {
+    try {
+      // Simple query to verify database connection
+      await db.select({ count: sql`count(*)` }).from(users);
+      res.json({ status: "ok", database: "connected" });
+    } catch (error) {
+      console.error("Database health check failed:", error);
+      res.status(500).json({ 
+        status: "error", 
+        message: "Database connection failed",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Setup authentication routes first
   setupAuth(app);
 
@@ -92,7 +112,8 @@ export function registerRoutes(app: Express): Server {
       req.path.startsWith("/api/register") ||
       (req.path.startsWith("/api/user") && req.method === "GET") ||
       (req.path.startsWith("/api/users/") && req.method === "GET") ||
-      req.path === "/api/users/_search"
+      req.path === "/api/users/_search" ||
+      req.path.startsWith("/api/health")
     ) {
       return next();
     }
